@@ -1,3 +1,5 @@
+#![feature(assert_matches)]
+
 use restest::assert_api;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -7,17 +9,17 @@ struct UserInput {
     year_of_birth: usize,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct User {
     year_of_birth: usize,
     id: Uuid,
 }
 
-#[test]
-pub fn put_simple() {
+#[tokio::test]
+pub async fn put_simple() {
     assert_api! {
-        PUT "/users",
-        UsersInput {
+        POST "/users",
+        UserInput {
             year_of_birth: 2000,
         } => User {
             year_of_birth: 2000,

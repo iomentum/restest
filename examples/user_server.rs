@@ -70,7 +70,7 @@ async fn main() {
     let post = path::path("users").and(post_route(db.clone()));
     let get = path::path("users").and(get_route(db));
 
-    let server = warp::serve(post.or(get)).run(([0, 0, 0, 1], 8080));
+    let server = warp::serve(post.or(get)).run(([127, 0, 0, 1], 8080));
 
     server.await
 }
