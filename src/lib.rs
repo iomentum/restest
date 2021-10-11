@@ -1,7 +1,11 @@
 #[macro_export]
 macro_rules! method {
-    ( GET ) => { reqwest::Client::get };
-    ( POST ) => { reqwest::Client::post };
+    ( GET ) => {
+        reqwest::Client::get
+    };
+    ( POST ) => {
+        reqwest::Client::post
+    };
 }
 
 #[macro_export]
