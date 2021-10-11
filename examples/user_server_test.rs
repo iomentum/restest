@@ -1,21 +1,29 @@
 use restest::assert_api;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Serialize)]
-struct UsersInput {
+struct UserInput {
     year_of_birth: usize,
 }
 
+#[derive(Deserialize)]
+struct User {
+    year_of_birth: usize,
+    id: Uuid,
+}
+
 #[test]
-fn put_simple() {
+pub fn put_simple() {
     assert_api! {
         PUT "/users",
         UsersInput {
             year_of_birth: 2000,
         } => User {
-            year_of_birth,
+            year_of_birth: 2000,
+            ..
         }
-    }
+    };
 }
 
 fn main() {
