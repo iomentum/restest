@@ -1,9 +1,26 @@
+//! # User server example
+//! 
+//! *To find the quick start commands, scroll at the bottom of the
+//! documentation.*
+//! 
+//! ## Description
+//! 
 //! Let's model a simple server which stores information about its users.
 //! More specifically, it stores their id (an Uuid) and year of birth.
 //! It exposes a REST API, where we can add a new user and query data about
 //! an user with a specific id.
 //! 
 //! To simplify the thing, we save everything in memory.
+//! 
+//! ## Testing the API
+//! 
+//! The server must be started in a terminal, so that the testing code can query
+//! it. The server never ends, so it must be stopped by pressing Ctrl + C.
+//! 
+//! ## Commands
+//! 
+//! $ cargo run --example user_server
+//! $ cargo test --example user_server_test
 
 use std::{collections::HashMap, sync::{Arc, Mutex}};
 
