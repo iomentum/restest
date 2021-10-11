@@ -1,3 +1,10 @@
+#[macro_export]
+macro_rules! assert_api {
+    ( $( $tt:tt )* ) => {
+        todo!()
+    };
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
