@@ -41,6 +41,9 @@ struct UserInput {
 #[derive(Debug, Deserialize)]
 struct User {
     year_of_birth: usize,
+    // This field is here to show that we can omit fields when running the
+    /// `assert_api` macro, but is never read thought.
+    #[allow(dead_code)]
     id: Uuid,
 }
 
@@ -50,15 +53,15 @@ struct User {
 /// we expect as a response.
 #[tokio::test]
 pub async fn put_simple() {
-    /// The first macro argument is the type of request, followed by the URL.
-    ///
-    /// Next to it are the input and expected output. The input is a plain
-    /// expression that must be `Serialize` and the output is a *pattern* that
-    /// is compared with the response body.
-    ///
-    /// We're using a pattern instead of a regular expression so that some
-    /// fields can be omitted. Similarly, we can include a specific variant
-    /// without caring about the others.
+    // The first macro argument is the type of request, followed by the URL.
+    //
+    // Next to it are the input and expected output. The input is a plain
+    // expression that must be `Serialize` and the output is a *pattern* that
+    // is compared with the response body.
+    //
+    // We're using a pattern instead of a regular expression so that some
+    // fields can be omitted. Similarly, we can include a specific variant
+    // without caring about the others.
     assert_api! {
         POST "/users",
         UserInput {
