@@ -49,7 +49,7 @@
 //!
 //! # Running tests
 //!
-//! The server must running in the background when `cargo test` is run.
+//! The server must be running in the background when `cargo test` is run.
 //!
 //! # Required toolchain
 //!
