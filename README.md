@@ -55,7 +55,7 @@ nightly-specific code. This offers the following features:
   - better panic message when the request body does not match the expected
   pattern (requires [`assert_matches`]),
   - ability to reuse variables matched in the response body (requires
-  [`let_else`]).
+  [`let_else`]) (*still WIP*).
 
 These two features must be added at the crate root using the following two
 lines:
