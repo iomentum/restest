@@ -204,12 +204,3 @@ macro_rules! assert_api {
         assert!(matches!(body, $output))
     };
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}
