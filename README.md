@@ -13,6 +13,8 @@ correct.
 
 use serde::{Deserialize, Serialize};
 
+restest::port! { 8080 }
+
 restest::assert_api! {
     POST "/user",
     PostUser {
@@ -36,6 +38,8 @@ struct User {
 ```
 
 ## Writing tests
+
+The [`port`] macro sets the port at which the request must be run.
 
 The tests are written as normal Rust tests (ie: functions annotated with
 `#[test]`). As we're using asynchronous code, we must write async tests,
