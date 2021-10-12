@@ -1,8 +1,19 @@
 [package]
 name = "restest"
 version = "0.1.0"
-edition = "2021"
+edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+uuid = { version = "0.8", features = ["v4", "serde"] }
+tokio = { version = "1.12", features = ["macros", "rt-multi-thread"] }
+warp = "0.3"
+restest = { path = ".", features = ["nightly"] }
+
+[features]
+nightly = []
