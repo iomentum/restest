@@ -52,6 +52,9 @@ struct User {
     id: Uuid,
 }
 
+// Let's tell to restest which port should be used for our tests:
+restest::port! { 8080 }
+
 /// A simple test for the PUT route.
 ///
 /// We send a simple request adding a new user to the database, and tell what
