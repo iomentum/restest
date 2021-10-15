@@ -75,6 +75,11 @@
 //! [`assert_matches`]: https://github.com/rust-lang/rust/issues/82775
 //! [`let_else`]: https://github.com/rust-lang/rust/issues/87335
 
+use std::fmt::Display;
+
+use reqwest::{Client, RequestBuilder};
+use serde::{de::DeserializeOwned, Serialize};
+
 // Important note:
 // All the examples and tests in this crate must be run **with** the `nightly`
 // feature and using the nightly toolchain.
@@ -83,10 +88,10 @@
 #[doc(hidden)]
 macro_rules! method {
     ( GET ) => {
-        reqwest::Client::get
+        $crate::Method::Get
     };
     ( POST ) => {
-        reqwest::Client::post
+        $crate::Method::Post
     };
 }
 
@@ -185,26 +190,19 @@ macro_rules! assert_api {
         $method:ident $url:literal,
         $input:expr => $output:pat $(,)?
     ) => {
-        let body = {
-            let client = reqwest::Client::new();
-            $crate::method!($method)(
-                &client,
-                format!("http://127.0.0.1:{}{}", __RESTEST_INTERNAL__PORT, $url),
-            )
-            .json(&$input)
-            .send()
-            .await
-            .expect("Failed to perform HTTP request")
-            .json()
-            .await
-            .expect("Failed to convert request output")
-        };
+        let server_output = $crate::request_and_deserialize(
+            $crate::method!($method),
+            $url,
+            __RESTEST_INTERNAL__PORT,
+            &$input,
+        )
+        .await;
 
         #[cfg(nightly)]
-        std::assert_matches::assert_matches!(body, $output);
+        std::assert_matches::assert_matches!(server_output, $output);
 
         #[cfg(not(nightly))]
-        assert!(matches!(body, $output))
+        assert!(matches!(server_output, $output))
     };
 }
 
@@ -229,4 +227,47 @@ macro_rules! port {
         #[allow(dead_code)]
         const __RESTEST_INTERNAL__PORT: u16 = $port;
     };
+}
+
+const LOCALHOST_ADDRESS: &str = "http://127.0.0.1";
+
+#[doc(hidden)]
+pub enum Method {
+    Get,
+    Post,
+}
+
+#[doc(hidden)]
+#[track_caller]
+// As we're writing test code, we can panic! at our own pace. The use of
+// #[track_caller] will report the correct span to the user anyway.
+pub async fn request_and_deserialize<I, O, U>(method: Method, url: U, port: u16, input: &I) -> O
+where
+    I: Serialize,
+    O: DeserializeOwned,
+    U: Display,
+{
+    let url = create_request_url(port, url);
+
+    create_request_builder(method, url)
+        .json(input)
+        .send()
+        .await
+        .expect("Failed to perform HTTP request")
+        .json()
+        .await
+        .expect("Failed to convert response body")
+}
+
+fn create_request_url(port: u16, url: impl Display) -> String {
+    format!("{}:{}{}", LOCALHOST_ADDRESS, port, url)
+}
+
+fn create_request_builder(method: Method, url: String) -> RequestBuilder {
+    let client = Client::new();
+    let create_request = match method {
+        Method::Get => Client::get,
+        Method::Post => Client::post,
+    };
+    create_request(&client, url)
 }
