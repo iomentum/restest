@@ -187,7 +187,7 @@ macro_rules! assert_api {
     //
     // This syntax does not allow to assert a response status code.
     (
-        $method:ident $url:literal,
+        $method:ident $url:expr,
         $input:expr => $output:pat $(,)?
     ) => {
         let server_output = $crate::request_and_deserialize(
@@ -198,11 +198,17 @@ macro_rules! assert_api {
         )
         .await;
 
-        #[cfg(nightly)]
-        std::assert_matches::assert_matches!(server_output, $output);
+        #[cfg(feature = "nightly")]
+        #[allow(unused_variables)]
+        {
+            std::assert_matches::assert_matches!(server_output, $output);
+        }
 
-        #[cfg(not(nightly))]
-        assert!(matches!(server_output, $output))
+        #[cfg(feature = "nightly")]
+        let $output = server_output else { unreachable!() };
+
+        #[cfg(not(feature = "nightly"))]
+        assert!(matches!($output, server_output));
     };
 }
 
