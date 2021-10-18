@@ -239,17 +239,35 @@ macro_rules! assert_api {
         )
         .await;
 
-        #[cfg(feature = "nightly")]
+        $crate::match_and_maybe_bind!($output, server_output);
+    };
+}
+
+// There's a bug in rustfmt where things that come next to a #[macro] in a
+// declarative macro are shifted four spaces to the right at each format.
+//
+// As a fix, the said code is #[rustfmt::skip]ped place.
+#[doc(hidden)]
+#[cfg(feature = "nightly")]
+#[rustfmt::skip]
+#[macro_export]
+macro_rules! match_and_maybe_bind {
+    ( $pat:pat, $expr:expr ) => {
         #[allow(unused_variables)]
         {
-            std::assert_matches::assert_matches!(&server_output, $output);
+            std::assert_matches::assert_matches!(&$expr, $pat);
         }
 
-        #[cfg(feature = "nightly")]
-                                                let $output = server_output else { unreachable!() };
+        let $pat = $expr else { unreachable!() };
+    };
+}
 
-        #[cfg(not(feature = "nightly"))]
-        assert!(matches!($output, server_output));
+#[doc(hidden)]
+#[cfg(not(feature = "nightly"))]
+#[macro_export]
+macro_rules! match_and_maybe_bind {
+    ( $pat:pat, $expr:expr ) => {
+        assert!(matches!($output, $expr));
     };
 }
 
