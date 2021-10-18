@@ -88,7 +88,7 @@ pub async fn put_simple() {
 pub async fn get_simple() {
     // Add an user and bind variable id to the user id.
     assert_api! {
-        POST "/users",
+        POST "users",
         UserInput {
             year_of_birth: 42,
         } => User {
@@ -99,7 +99,7 @@ pub async fn get_simple() {
 
     // Retrieve user whose id is equal to the content of the variable id:
     assert_api! {
-        GET format!("/users/{}", id),
+        GET ["users", id],
         () => User {
             year_of_birth,
             ..
