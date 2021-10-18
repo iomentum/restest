@@ -23,7 +23,7 @@
 //! $ cargo +nightly run --example user_server
 //! $ cargo +nightly test --example user_server_test
 
-#![feature(assert_matches)]
+#![feature(assert_matches, let_else)]
 
 use restest::assert_api;
 use serde::{Deserialize, Serialize};
@@ -48,7 +48,6 @@ struct User {
     year_of_birth: usize,
     // This field is here to show that we can omit fields when running the
     /// `assert_api` macro, but is never read thought.
-    #[allow(dead_code)]
     id: Uuid,
 }
 
@@ -79,6 +78,35 @@ pub async fn put_simple() {
             ..
         }
     };
+}
+
+/// A simple test for the GET route.
+///
+/// We add a new user to the database and get again its profile so that we
+/// can ensure that both profiles are equal.
+#[tokio::test]
+pub async fn get_simple() {
+    // Add an user and bind variable id to the user id.
+    assert_api! {
+        POST "/users",
+        UserInput {
+            year_of_birth: 42,
+        } => User {
+            id,
+            ..
+        }
+    };
+
+    // Retrieve user whose id is equal to the content of the variable id:
+    assert_api! {
+        GET format!("/users/{}", id),
+        () => User {
+            year_of_birth,
+            ..
+        }
+    };
+
+    assert_eq!(year_of_birth, 42);
 }
 
 fn main() {
