@@ -10,13 +10,14 @@ correct.
 
 ```rust
 #![feature(assert_matches)]
+#![feature(let_else)]
 
 use serde::{Deserialize, Serialize};
 
 restest::port! { 8080 }
 
 restest::assert_api! {
-    POST "/user",
+    POST "user",
     PostUser {
         year_of_birth: 2000,
     } => User {
