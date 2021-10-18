@@ -48,7 +48,6 @@ struct User {
     year_of_birth: usize,
     // This field is here to show that we can omit fields when running the
     /// `assert_api` macro, but is never read thought.
-    #[allow(dead_code)]
     id: Uuid,
 }
 
