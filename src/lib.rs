@@ -76,6 +76,10 @@
 //! [`assert_matches`]: https://github.com/rust-lang/rust/issues/82775
 //! [`let_else`]: https://github.com/rust-lang/rust/issues/87335
 
+pub use restest_macros::assert_body_matches;
+
+pub mod __private;
+
 use std::fmt::Display;
 
 use reqwest::{Client, RequestBuilder};
