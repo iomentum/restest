@@ -3,12 +3,12 @@ extern crate proc_macro;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    bracketed,
+    braced, bracketed,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    token::{As, Bracket},
-    Expr, Ident, LitInt, Token, Type,
+    token::{As, Brace, Bracket},
+    Expr, Ident, LitInt, LitStr, Token, Type,
 };
 
 #[proc_macro]
@@ -46,7 +46,7 @@ impl BodyMatchCall {
 
         let (names, exprs): (Vec<_>, Vec<_>) = self
             .pat
-            .expand_bindings(&quote! { #value })
+            .expand_bindings(quote! { #value })
             .into_iter()
             .unzip();
 
@@ -84,6 +84,23 @@ impl Pattern {
 
             PatternKind::SimpleBinding { .. } => quote! { restest::__private::Pattern::Any },
 
+            PatternKind::String(s) => {
+                quote! { restest::__private::Pattern::String(#s) }
+            }
+
+            PatternKind::UntypedObject(fields) => {
+                let (fields, patterns): (Vec<_>, Vec<_>) = fields
+                    .iter()
+                    .map(|PatternField { name, sub_pattern }| {
+                        (name, sub_pattern.expand_matching_pattern())
+                    })
+                    .unzip();
+
+                quote! {
+                    restest::__private::Pattern::object_from_array( [ #( (stringify!(#fields), #patterns) ),* ] )
+                }
+            }
+
             PatternKind::Array(a) => {
                 let elems = a.iter().map(|elem| elem.expand_matching_pattern());
 
@@ -94,13 +111,13 @@ impl Pattern {
         }
     }
 
-    fn expand_bindings(&self, previous: &TokenStream) -> Vec<(Ident, TokenStream)> {
+    fn expand_bindings(&self, previous: TokenStream) -> Vec<(Ident, TokenStream)> {
         match &self.kind {
             PatternKind::Array(array) => array
                 .iter()
                 .enumerate()
                 .flat_map(|(idx, sub_pattern)| {
-                    sub_pattern.expand_bindings(&quote! { #previous.to_array().get(#idx).unwrap() })
+                    sub_pattern.expand_bindings(quote! { #previous.to_array().get(#idx).unwrap() })
                 })
                 .collect(),
 
@@ -110,6 +127,17 @@ impl Pattern {
                 let final_call = ty.expand_final_call();
                 vec![(name.clone(), quote! { #previous #final_call })]
             }
+
+            PatternKind::String(_) => Vec::new(),
+
+            PatternKind::UntypedObject(fields) => fields
+                .iter()
+                .flat_map(|PatternField { name, sub_pattern }| {
+                    sub_pattern.expand_bindings(
+                        quote! { #previous.to_object().get(stringify!(#name)).unwrap() },
+                    )
+                })
+                .collect(),
         }
     }
 }
@@ -118,12 +146,20 @@ impl Parse for Pattern {
     fn parse(input: ParseStream) -> syn::Result<Pattern> {
         let kind = if input.peek(LitInt) {
             PatternKind::Integer(input.parse()?)
+        } else if input.peek(LitStr) {
+            PatternKind::String(input.parse()?)
         } else if input.peek(Bracket) {
             let inner;
             let _ = bracketed!(inner in input);
             let elems = Punctuated::parse_terminated(&inner)?;
 
             PatternKind::Array(elems)
+        } else if input.peek(Brace) {
+            let inner;
+            let _ = braced!(inner in input);
+            let elems = Punctuated::parse_terminated(&inner)?;
+
+            PatternKind::UntypedObject(elems)
         } else if input.peek(Ident) {
             let name = input.parse().unwrap();
 
@@ -132,7 +168,7 @@ impl Parse for Pattern {
 
             PatternKind::SimpleBinding { name, ty }
         } else {
-            return Err(input.error("Excepted an integer or `[`"));
+            return Err(input.error("Excepted an integer, a string, an identifier, `{` or `[`"));
         };
 
         Ok(Pattern { kind })
@@ -142,11 +178,30 @@ impl Parse for Pattern {
 enum PatternKind {
     Array(Punctuated<Pattern, Token![,]>),
     Integer(LitInt),
+    UntypedObject(Punctuated<PatternField, Token![,]>),
     /// Simple binding aka binding with no subpattern to match.
     SimpleBinding {
         name: Ident,
         ty: Ty,
     },
+    String(LitStr),
+}
+
+struct PatternField {
+    // TODO: handle destructuring such as `{ a, b, c }`.
+    // This can currently be expressed with `{ a: a, b: b, c: c }`.
+    name: Ident,
+    sub_pattern: Pattern,
+}
+
+impl Parse for PatternField {
+    fn parse(input: ParseStream) -> syn::Result<PatternField> {
+        let name = input.parse()?;
+        let _ = input.parse::<Token![:]>()?;
+        let sub_pattern = input.parse()?;
+
+        Ok(PatternField { name, sub_pattern })
+    }
 }
 
 enum Ty {
