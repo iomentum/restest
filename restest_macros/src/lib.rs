@@ -28,7 +28,7 @@ pub fn assert_body_matches(input: proc_macro::TokenStream) -> proc_macro::TokenS
 
 impl BodyMatchCall {
     fn expand_pattern_constructor(&self) -> TokenStream {
-        let pat = self.pat.expand();
+        let pat = self.pat.expand_matching_pattern();
         quote! {
             let pat = #pat;
         }
@@ -44,8 +44,11 @@ impl BodyMatchCall {
     fn expand_bindings(&self) -> TokenStream {
         let value = &self.value;
 
-        let (names, exprs): (Vec<_>, Vec<_>) =
-            self.pat.bindings(&quote! { #value }).into_iter().unzip();
+        let (names, exprs): (Vec<_>, Vec<_>) = self
+            .pat
+            .expand_bindings(&quote! { #value })
+            .into_iter()
+            .unzip();
 
         quote! {
             use restest::__private::ValueExt as _;
@@ -75,14 +78,14 @@ struct Pattern {
 }
 
 impl Pattern {
-    fn expand(&self) -> TokenStream {
+    fn expand_matching_pattern(&self) -> TokenStream {
         match &self.kind {
             PatternKind::Integer(i) => quote! { restest::__private::Pattern::Integer(#i) },
 
             PatternKind::SimpleBinding { .. } => quote! { restest::__private::Pattern::Any },
 
             PatternKind::Array(a) => {
-                let elems = a.iter().map(|elem| elem.expand());
+                let elems = a.iter().map(|elem| elem.expand_matching_pattern());
 
                 quote! {
                     restest::__private::Pattern::Array(vec![ #( #elems ),* ])
@@ -91,13 +94,13 @@ impl Pattern {
         }
     }
 
-    fn bindings(&self, previous: &TokenStream) -> Vec<(Ident, TokenStream)> {
+    fn expand_bindings(&self, previous: &TokenStream) -> Vec<(Ident, TokenStream)> {
         match &self.kind {
             PatternKind::Array(array) => array
                 .iter()
                 .enumerate()
                 .flat_map(|(idx, sub_pattern)| {
-                    sub_pattern.bindings(&quote! { #previous.to_array().get(#idx).unwrap() })
+                    sub_pattern.expand_bindings(&quote! { #previous.to_array().get(#idx).unwrap() })
                 })
                 .collect(),
 
