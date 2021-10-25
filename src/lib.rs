@@ -104,6 +104,11 @@ pub use restest_macros::assert_body_matches;
 
 #[doc(hidden)]
 pub mod __private;
+pub mod context;
+pub mod request;
+pub mod url;
+
+pub use context::Context;
 
 use std::fmt::Display;
 
@@ -113,6 +118,13 @@ use serde::{de::DeserializeOwned, Serialize};
 // Important note:
 // All the examples and tests in this crate must be run **with** the `nightly`
 // feature and using the nightly toolchain.
+
+#[macro_export]
+macro_rules! path {
+    ( $( $segment:expr ),* $(,)? ) => {
+        vec![ $( Box::new($segment) as Box<dyn ToString>, )* ]
+    };
+}
 
 #[macro_export]
 #[doc(hidden)]
