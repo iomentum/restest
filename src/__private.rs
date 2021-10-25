@@ -5,7 +5,7 @@ use serde_json::{Number, Value};
 pub enum Pattern {
     Any,
     Array(Vec<Pattern>),
-    Integer(isize),
+    Integer(i64),
 }
 
 pub fn assert_matches(value: Value, pattern: Pattern) {
@@ -17,9 +17,9 @@ pub fn assert_matches(value: Value, pattern: Pattern) {
     }
 }
 
-fn assert_number_matches(value: Number, pattern: isize) {
+fn assert_number_matches(value: Number, pattern: i64) {
     let json_number = value.as_i64().expect("Failed to convert Number to i64");
-    assert_eq!(json_number as isize, pattern);
+    assert_eq!(json_number, pattern);
 }
 
 fn assert_array_matches(value: Vec<Value>, pattern: Vec<Pattern>) {
