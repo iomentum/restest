@@ -98,6 +98,14 @@
 /// ```
 pub use restest_macros::assert_body_matches;
 
+pub mod context;
+pub mod request;
+pub mod url;
+
+pub use context::Context;
+pub use request::Request;
+pub use url::IntoUrl;
+
 use std::fmt::Display;
 
 use reqwest::{Client, RequestBuilder};
@@ -106,6 +114,13 @@ use serde::{de::DeserializeOwned, Serialize};
 // Important note:
 // All the examples and tests in this crate must be run **with** the `nightly`
 // feature and using the nightly toolchain.
+
+#[macro_export]
+macro_rules! path {
+    ( $( $segment:expr ),* $(,)? ) => {
+        vec![ $( Box::new($segment) as Box<dyn ToString>, )* ]
+    };
+}
 
 #[macro_export]
 #[doc(hidden)]

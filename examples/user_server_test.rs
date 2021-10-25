@@ -20,12 +20,13 @@
 //!
 //! ## Commands
 //!
-//! $ cargo +nightly run --example user_server
-//! $ cargo +nightly test --example user_server_test
+//! $ cargo run --example user_server
+//! $ cargo test --example user_server_test
 
-#![feature(assert_matches, let_else)]
+#![allow(unused_imports, dead_code)]
 
-use restest::assert_api;
+use http::StatusCode;
+use restest::{assert_body_matches, path, Context, Request};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -51,62 +52,76 @@ struct User {
     id: Uuid,
 }
 
-// Let's tell to restest which port should be used for our tests:
-restest::port! { 8080 }
+/// Let's tell to restest which port should be used for our tests:
+const CONTEXT: Context = Context::new().with_port(8080);
 
-/// A simple test for the PUT route.
+/// Test the PUT route.
 ///
 /// We send a simple request adding a new user to the database, and tell what
 /// we expect as a response.
 #[tokio::test]
 pub async fn put_simple() {
-    // The first macro argument is the type of request, followed by the URL.
+    // Let's create a Request object, representing what we're about to ask to
+    // the server.
+    let request = Request::post("users").with_body(UserInput {
+        year_of_birth: 2000,
+    });
+
+    // Now that we have our request object, we can ask our Context to run it.
     //
-    // Next to it are the input and expected output. The input is a plain
-    // expression that must be `Serialize` and the output is a *pattern* that
-    // is compared with the response body.
-    //
-    // We're using a pattern instead of a regular expression so that some
-    // fields can be omitted. Similarly, we can include a specific variant
-    // without caring about the others.
-    assert_api! {
-        POST "/users",
-        UserInput {
-            year_of_birth: 2000,
-        } => User {
-            year_of_birth: 2000,
-            ..
-        }
+    // We also check that the response status is what we expect and deserialize
+    // the body.
+    let user = CONTEXT
+        .run(request)
+        .await
+        .expect_status(StatusCode::OK)
+        .await;
+
+    assert_body_matches! {
+        user,
+        User { year_of_birth: 2000, .. },
     };
 }
 
-/// A simple test for the GET route.
+/// Test for the GET route.
 ///
 /// We add a new user to the database and get again its profile so that we
 /// can ensure that both profiles are equal.
 #[tokio::test]
 pub async fn get_simple() {
-    // Add an user and bind variable id to the user id.
-    assert_api! {
-        POST "/users",
-        UserInput {
-            year_of_birth: 42,
-        } => User {
-            id,
-            ..
-        }
+    // Create a new Request object, just as we did for the put_simple test.
+    let request = Request::post("users").with_body(UserInput {
+        year_of_birth: 2000,
+    });
+
+    // Similarly, execute the said request and get the output.
+    let user = CONTEXT
+        .run(request)
+        .await
+        .expect_status(StatusCode::OK)
+        .await;
+
+    // Here is a little trick: we need to get back the user ID. To do so, we
+    // bind the id variable to the field uuid of the object we got in response.
+    assert_body_matches! {
+        user,
+        User { id, year_of_birth: 2000 },
     };
 
-    // Retrieve user whose id is equal to the content of the variable id:
-    assert_api! {
-        GET format!("/users/{}", id),
-        () => User {
-            year_of_birth,
-            ..
-        }
-    };
+    // We can now use the uuid variable to create another request.
+    let request = Request::get(path!["users", id]).with_body(());
 
-    assert_eq!(year_of_birth, 42);
+    let response = CONTEXT
+        .run(request)
+        .await
+        .expect_status(StatusCode::OK)
+        .await;
+
+    // We can ensure that the returned year of birth is now correct.
+    assert_body_matches! {
+        response,
+        User { year_of_birth: 2000, .. },
+    };
 }
 
 fn main() {
