@@ -76,6 +76,35 @@
 //! [`assert_matches`]: https://github.com/rust-lang/rust/issues/82775
 //! [`let_else`]: https://github.com/rust-lang/rust/issues/87335
 
+/// Asserts that a [`Value`][serde_json::Value] matches a given pattern, adds
+/// bindings to the current scope.
+///
+/// This has *very* limited functionalities for now.
+///
+/// # Example
+///
+/// ```rust
+/// restest::assert_body_matches!(
+///     serde_json::json! {
+///         [42, 41]
+///     },
+///     [42, 41]
+/// );
+///
+/// restest::assert_body_matches! {
+///     serde_json::json! {
+///         [42, 101]
+///     },
+///     a as [isize]
+/// };
+///
+/// assert_eq!(a, [42, 101]);
+/// ```
+pub use restest_macros::assert_body_matches;
+
+#[doc(hidden)]
+pub mod __private;
+
 use std::fmt::Display;
 
 use reqwest::{Client, RequestBuilder};
