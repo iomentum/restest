@@ -78,6 +78,7 @@
 
 pub use restest_macros::assert_body_matches;
 
+#[doc(hidden)]
 pub mod __private;
 
 use std::fmt::Display;
