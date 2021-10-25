@@ -1,12 +1,16 @@
+use serde::de::DeserializeOwned;
 use serde_json::{Number, Value};
 
+#[derive(Debug)]
 pub enum Pattern {
+    Any,
     Array(Vec<Pattern>),
     Integer(isize),
 }
 
 pub fn assert_matches(value: Value, pattern: Pattern) {
     match (value, pattern) {
+        (_, Pattern::Any) => {}
         (Value::Number(v), Pattern::Integer(p)) => assert_number_matches(v, p),
         (Value::Array(v), Pattern::Array(p)) => assert_array_matches(v, p),
         _ => panic!("Values don't have the same type"),
@@ -29,4 +33,25 @@ fn assert_array_matches(value: Vec<Value>, pattern: Vec<Pattern>) {
         .into_iter()
         .zip(pattern)
         .for_each(|(v, p)| assert_matches(v, p))
+}
+
+/// Allows to encode the method chaining that is necessary to get access to the
+/// the value we want.
+pub trait ValueExt {
+    fn to_array(&self) -> &[Value];
+
+    fn deserialize<T: DeserializeOwned>(self) -> T;
+}
+
+impl ValueExt for Value {
+    fn to_array(&self) -> &[Value] {
+        match self {
+            Value::Array(array) => array,
+            _ => unreachable!(),
+        }
+    }
+
+    fn deserialize<T: DeserializeOwned>(self) -> T {
+        serde_json::from_value(self).unwrap()
+    }
 }
