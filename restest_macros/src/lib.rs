@@ -1,176 +1,119 @@
 extern crate proc_macro;
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{
-    bracketed,
     parse::{Parse, ParseStream},
     parse_macro_input,
-    punctuated::Punctuated,
-    token::{As, Bracket},
-    Expr, Ident, LitInt, Token, Type,
+    visit_mut::{self, VisitMut},
+    Expr, Ident, Pat, PatIdent, PatLit, Token,
 };
 
 #[proc_macro]
 pub fn assert_body_matches(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as BodyMatchCall);
 
-    let pattern_constructor = input.expand_pattern_constructor();
-    let check_call = input.expand_check_call();
-    let bindings = input.expand_bindings();
-
-    proc_macro::TokenStream::from(quote! {
-        #pattern_constructor
-        #check_call
-        #bindings
-    })
+    proc_macro::TokenStream::from(input.expand())
 }
 
 impl BodyMatchCall {
-    fn expand_pattern_constructor(&self) -> TokenStream {
-        let pat = self.pat.expand_matching_pattern();
-        quote! {
-            let pat = #pat;
-        }
-    }
+    fn expand(mut self) -> TokenStream {
+        // We need to do two things:
+        //   - keep track of the variables we capture in the pattern, so that we
+        //     can add them to the scope,
+        //   - change each literal pattern to a binding that is checked in a
+        //     separate guard.
+        let PatternVisitor {
+            bound_variables,
+            checked_variables,
+        } = PatternVisitor::from_pattern(&mut self.pat);
 
-    fn expand_check_call(&self) -> TokenStream {
-        let value = &self.value;
-        quote! {
-            restest::__private::assert_matches(#value, pat);
-        }
-    }
+        let value = self.value;
+        let pat = self.pat;
 
-    fn expand_bindings(&self) -> TokenStream {
-        let value = &self.value;
-
-        let (names, exprs): (Vec<_>, Vec<_>) = self
-            .pat
-            .expand_bindings(&quote! { #value })
-            .into_iter()
-            .unzip();
+        let (checked_variables, corresponding_lits): (Vec<_>, Vec<_>) =
+            checked_variables.into_iter().unzip();
 
         quote! {
-            use restest::__private::ValueExt as _;
+            let ( #( #bound_variables, )* ) = match #value {
+                #pat if #( #checked_variables == #corresponding_lits && )* true => ( #( #bound_variables, )* ),
 
-            #( let #names = #exprs; )*
+                _ => panic!("Matching failed"),
+            };
         }
     }
 }
 
 impl Parse for BodyMatchCall {
     fn parse(input: ParseStream) -> syn::Result<BodyMatchCall> {
-        let value = input.parse()?;
-        let _ = input.parse::<Token![,]>()?;
-        let pat = input.parse()?;
-
-        Ok(BodyMatchCall { value, pat })
+        Ok(BodyMatchCall {
+            value: input.parse()?,
+            _comma1: input.parse()?,
+            pat: input.parse()?,
+            _comma2: input.parse()?,
+        })
     }
 }
 
 struct BodyMatchCall {
     value: Expr,
-    pat: Pattern,
+    _comma1: Token![,],
+    pat: Pat,
+    _comma2: Option<Token![,]>,
 }
 
-struct Pattern {
-    kind: PatternKind,
+/// This type dives in a pattern, gathers information and alters it.
+///
+/// More precisely, it will:
+///   - gather a list of all the variables that are bound by the pattern.
+///   - replace each literal pattern with a binding of an internal ident and
+///     keep track of which ident corresponds to what literal.
+#[derive(Default)]
+struct PatternVisitor {
+    bound_variables: Vec<Ident>,
+    checked_variables: Vec<(Ident, PatLit)>,
 }
 
-impl Pattern {
-    fn expand_matching_pattern(&self) -> TokenStream {
-        match &self.kind {
-            PatternKind::Integer(i) => quote! { restest::__private::Pattern::Integer(#i) },
+impl PatternVisitor {
+    fn from_pattern(p: &mut Pat) -> PatternVisitor {
+        let mut this = PatternVisitor::new();
+        this.visit_pat_mut(p);
 
-            PatternKind::SimpleBinding { .. } => quote! { restest::__private::Pattern::Any },
+        this
+    }
 
-            PatternKind::Array(a) => {
-                let elems = a.iter().map(|elem| elem.expand_matching_pattern());
+    fn new() -> PatternVisitor {
+        PatternVisitor::default()
+    }
 
-                quote! {
-                    restest::__private::Pattern::Array(vec![ #( #elems ),* ])
-                }
+    fn mk_checked_variables_internal_ident(&self) -> Ident {
+        format_ident!("__restest_internal_{}", self.checked_variables.len())
+    }
+}
+
+impl VisitMut for PatternVisitor {
+    fn visit_pat_ident_mut(&mut self, i: &mut PatIdent) {
+        self.bound_variables.push(i.ident.clone());
+    }
+
+    fn visit_pat_mut(&mut self, i: &mut Pat) {
+        match i {
+            Pat::Lit(lit) => {
+                let ident = self.mk_checked_variables_internal_ident();
+                self.checked_variables.push((ident.clone(), lit.clone()));
+
+                *i = Pat::Ident(PatIdent {
+                    attrs: Vec::new(),
+                    // TODO
+                    by_ref: None,
+                    // TODO
+                    mutability: None,
+                    ident,
+                    subpat: None,
+                });
             }
-        }
-    }
 
-    fn expand_bindings(&self, previous: &TokenStream) -> Vec<(Ident, TokenStream)> {
-        match &self.kind {
-            PatternKind::Array(array) => array
-                .iter()
-                .enumerate()
-                .flat_map(|(idx, sub_pattern)| {
-                    sub_pattern.expand_bindings(&quote! { #previous.to_array().get(#idx).unwrap() })
-                })
-                .collect(),
-
-            PatternKind::Integer(_) => Vec::new(),
-
-            PatternKind::SimpleBinding { name, ty } => {
-                let final_call = ty.expand_final_call();
-                vec![(name.clone(), quote! { #previous #final_call })]
-            }
-        }
-    }
-}
-
-impl Parse for Pattern {
-    fn parse(input: ParseStream) -> syn::Result<Pattern> {
-        let kind = if input.peek(LitInt) {
-            PatternKind::Integer(input.parse()?)
-        } else if input.peek(Bracket) {
-            let inner;
-            let _ = bracketed!(inner in input);
-            let elems = Punctuated::parse_terminated(&inner)?;
-
-            PatternKind::Array(elems)
-        } else if input.peek(Ident) {
-            let name = input.parse().unwrap();
-
-            input.parse::<As>()?;
-            let ty = input.parse()?;
-
-            PatternKind::SimpleBinding { name, ty }
-        } else {
-            return Err(input.error("Excepted an integer or `[`"));
-        };
-
-        Ok(Pattern { kind })
-    }
-}
-
-enum PatternKind {
-    Array(Punctuated<Pattern, Token![,]>),
-    Integer(LitInt),
-    /// Simple binding aka binding with no subpattern to match.
-    SimpleBinding {
-        name: Ident,
-        ty: Ty,
-    },
-}
-
-enum Ty {
-    Array(Type),
-    Deserializable(Type),
-}
-
-impl Parse for Ty {
-    fn parse(input: ParseStream) -> syn::Result<Ty> {
-        if input.peek(Bracket) {
-            let inner;
-            let _ = bracketed!(inner in input);
-            inner.parse().map(Ty::Array)
-        } else {
-            input.parse().map(Ty::Deserializable)
-        }
-    }
-}
-
-impl Ty {
-    fn expand_final_call(&self) -> TokenStream {
-        match self {
-            Ty::Array(inner_ty) => quote! { .to_owned().deserialize::<Vec<#inner_ty>>() },
-            Ty::Deserializable(ty) => quote! { .to_owned().deserialize::<#ty>() },
+            _ => visit_mut::visit_pat_mut(self, i),
         }
     }
 }
