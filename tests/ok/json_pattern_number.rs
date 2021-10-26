@@ -1,3 +1,3 @@
 fn main() {
-    restest::assert_body_matches!(serde_json::json! { 42 }, 42);
+    restest::assert_body_matches!(42, 42);
 }

@@ -85,25 +85,18 @@
 ///
 /// ```rust
 /// restest::assert_body_matches!(
-///     serde_json::json! {
-///         [42, 41]
-///     },
+///     [42, 41],
 ///     [42, 41]
 /// );
 ///
 /// restest::assert_body_matches! {
-///     serde_json::json! {
-///         [42, 101]
-///     },
-///     a as [isize]
+///     [42, 101],
+///     a
 /// };
 ///
 /// assert_eq!(a, [42, 101]);
 /// ```
 pub use restest_macros::assert_body_matches;
-
-#[doc(hidden)]
-pub mod __private;
 
 use std::fmt::Display;
 
