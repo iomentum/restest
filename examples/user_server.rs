@@ -17,11 +17,6 @@
 //! The server must be started in a terminal, so that the testing code can query
 //! it. The server never ends, so it must be stopped by pressing Ctrl + C.
 //!
-//! The nightly toolchain must be used to compile the test code, but the server
-//! can be compiled with any toolchain. In order to avoid recompiling all the
-//! `dev-dependencies` each time, it is better to compile everything with the
-//! nightly toolchain.
-//!
 //! ## Commands
 //!
 //! $ cargo run --example user_server

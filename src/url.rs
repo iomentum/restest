@@ -4,7 +4,11 @@ pub trait IntoUrl {
 
 impl IntoUrl for &'static str {
     fn into_url(self) -> String {
-        self.to_string()
+        if self.starts_with('/') {
+            self.to_string()
+        } else {
+            format!("/{}", self.to_string())
+        }
     }
 }
 

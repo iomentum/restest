@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use http::status::StatusCode;
 use reqwest::Response;
 use serde::{de::DeserializeOwned, Serialize};
+use serde_json::Value;
 
 use crate::url::IntoUrl;
 
@@ -85,11 +86,12 @@ impl RequestResult {
         self
     }
 
+    #[doc(hidden)]
     #[track_caller]
-    pub async fn deserialize<T: DeserializeOwned>(self) -> T {
+    pub async fn json(self) -> Value {
         self.response
             .json()
             .await
-            .expect("Failed to deserialize body")
+            .expect("Failed to deserialize the body")
     }
 }

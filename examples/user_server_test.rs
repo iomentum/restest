@@ -13,20 +13,13 @@
 //! The server must be started in a terminal, so that the testing code can query
 //! it. The server never ends, so it must be stopped by pressing Ctrl + C.
 //!
-//! The nightly toolchain must be used to compile the test code, but the server
-//! can be compiled with any toolchain. In order to avoid recompiling all the
-//! `dev-dependencies` each time, it is better to compile everything with the
-//! nightly toolchain.
-//!
 //! ## Commands
 //!
-//! $ cargo +nightly run --example user_server
-//! $ cargo +nightly test --example user_server_test
-
-#![feature(assert_matches, let_else)]
+//! $ cargo run --example user_server
+//! $ cargo test --example user_server_test
 
 use http::StatusCode;
-use restest::{assert_api, assert_body_matches, path, request::Request, Context};
+use restest::{assert_body_matches, path, request::Request, Context};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -71,15 +64,14 @@ pub async fn put_simple() {
     //
     // We also check that the response status is what we expect and deserialize
     // the body.
-    let user = CONTEXT
-        .run(request)
-        .await
-        .expect_status(StatusCode::OK)
-        .await;
+    let user = CONTEXT.run(request).await.expect_status(StatusCode::OK);
 
+    // TODO(scrabsha): allow either:
+    //   - `_` as a variable name,
+    //   - allow `..` to specify we don't need anything else.
     assert_body_matches! {
         user,
-        { uuid: _ as Uuid, year_of_birth: 2000 }
+        { id: u as Uuid, year_of_birth: 2000 }
     };
 }
 
@@ -95,11 +87,7 @@ pub async fn get_simple() {
     });
 
     // Similarly, execute the said request and get the output.
-    let response = CONTEXT
-        .run(request)
-        .await
-        .expect_status(StatusCode::OK)
-        .await;
+    let response = CONTEXT.run(request).await.expect_status(StatusCode::OK);
 
     // Here is a little trick: we need to get back the user ID. To do so, we
     // bind the id variable to the field uuid of the object we got in response.
@@ -111,16 +99,12 @@ pub async fn get_simple() {
     // We can now use the uuid variable to create another request.
     let request = Request::get(path!["users", id]).with_body(());
 
-    let response = CONTEXT
-        .run(request)
-        .await
-        .expect_status(StatusCode::OK)
-        .await;
+    let response = CONTEXT.run(request).await.expect_status(StatusCode::OK);
 
     // We can ensure that the returned year of birth is now correct.
     assert_body_matches! {
         response,
-        { id: _ as Uuid, year_of_birth: 2000 }
+        { id: u as Uuid, year_of_birth: 2000 }
     };
 }
 

@@ -52,7 +52,9 @@ impl Context {
             Method::Post => Client::post,
         };
 
-        let url = format!("{}:{}/{}", self.host, self.port, request.url);
+        let url = format!("{}:{}{}", self.host, self.port, request.url);
+
+        dbg!(url.as_str());
 
         let headers = request
             .header

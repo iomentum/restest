@@ -15,11 +15,13 @@ use syn::{
 pub fn assert_body_matches(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as BodyMatchCall);
 
+    let deserialization = input.expand_value_deserialization();
     let pattern_constructor = input.expand_pattern_constructor();
     let check_call = input.expand_check_call();
     let bindings = input.expand_bindings();
 
     proc_macro::TokenStream::from(quote! {
+        #deserialization
         #pattern_constructor
         #check_call
         #bindings
@@ -27,6 +29,14 @@ pub fn assert_body_matches(input: proc_macro::TokenStream) -> proc_macro::TokenS
 }
 
 impl BodyMatchCall {
+    fn expand_value_deserialization(&self) -> TokenStream {
+        let value = &self.value;
+
+        quote! {
+            let value = #value.json().await;
+        }
+    }
+
     fn expand_pattern_constructor(&self) -> TokenStream {
         let pat = self.pat.expand_matching_pattern();
         quote! {
@@ -35,18 +45,15 @@ impl BodyMatchCall {
     }
 
     fn expand_check_call(&self) -> TokenStream {
-        let value = &self.value;
         quote! {
-            restest::__private::assert_matches(#value, pat);
+            restest::__private::assert_matches(value.clone(), pat);
         }
     }
 
     fn expand_bindings(&self) -> TokenStream {
-        let value = &self.value;
-
         let (names, exprs): (Vec<_>, Vec<_>) = self
             .pat
-            .expand_bindings(quote! { #value })
+            .expand_bindings(quote! { value })
             .into_iter()
             .unzip();
 
