@@ -5,7 +5,7 @@
 //!
 //! ## Description
 //!
-//! We're testing a simple user database REST API using `restest`-provided
+//! We're testing a small user database REST API using `restest`-provided
 //! macros.
 //!
 //! ## Testing the API
@@ -47,20 +47,18 @@ struct UserInput {
 #[derive(Debug, Deserialize)]
 struct User {
     year_of_birth: usize,
-    // This field is here to show that we can omit fields when running the
-    /// `assert_api` macro, but is never read thought.
     id: Uuid,
 }
 
 /// Let's tell to restest which port should be used for our tests:
 const CONTEXT: Context = Context::new().with_port(8080);
 
-/// Test the PUT route.
+/// Test PUT route.
 ///
-/// We send a simple request adding a new user to the database, and tell what
-/// we expect as a response.
+/// We send a request adding a new user to the database, and tell what we expect
+/// as a response.
 #[tokio::test]
-pub async fn put_simple() {
+pub async fn put_user() {
     // Let's create a Request object, representing what we're about to ask to
     // the server.
     let request = Request::post("users").with_body(UserInput {
@@ -88,8 +86,8 @@ pub async fn put_simple() {
 /// We add a new user to the database and get again its profile so that we
 /// can ensure that both profiles are equal.
 #[tokio::test]
-pub async fn get_simple() {
-    // Create a new Request object, just as we did for the put_simple test.
+pub async fn get_user() {
+    // Create a new Request object, just as we did for the put_user test.
     let request = Request::post("users").with_body(UserInput {
         year_of_birth: 2000,
     });
