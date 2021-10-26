@@ -99,14 +99,15 @@ pub async fn get_user() {
         .expect_status(StatusCode::OK)
         .await;
 
-    // Here is a little trick: we need to get back the user ID. To do so, we
-    // bind the id variable to the field uuid of the object we got in response.
+    // Here is a little trick: we need to get back the user ID so that we can
+    // reuse it for the next request. To do so, we bind the variable id to the
+    // field id of the object we got in response.
     assert_body_matches! {
         user,
         User { id, year_of_birth: 2000 },
     };
 
-    // We can now use the uuid variable to create another request.
+    // We can now use the id variable to create another request.
     let request = Request::get(path!["users", id]).with_body(());
 
     let response = CONTEXT
