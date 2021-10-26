@@ -76,7 +76,7 @@
 //! [`assert_matches`]: https://github.com/rust-lang/rust/issues/82775
 //! [`let_else`]: https://github.com/rust-lang/rust/issues/87335
 
-/// Asserts that a [`Value`][serde_json::Value] matches a given pattern, adds
+/// Asserts that a response body matches a given pattern, adds
 /// bindings to the current scope.
 ///
 /// This has *very* limited functionalities for now.
@@ -115,6 +115,27 @@ use serde::{de::DeserializeOwned, Serialize};
 // All the examples and tests in this crate must be run **with** the `nightly`
 // feature and using the nightly toolchain.
 
+/// Creates a path from multiple segments.
+///
+/// All the segments don't need to have the same type. They all need to
+/// implement [`ToString`].
+///
+/// # Example
+///
+/// ```rust
+/// use restest::{path, Request};
+///
+/// let my_user_id = Uuid::new_v4();
+///
+/// Request::get(path!["users", my_user_id])
+///     .with_body(())
+///     // the rest of the request
+/// #   ;
+/// # struct Uuid;
+/// # impl Uuid {
+/// #     fn new_v4() -> usize { 42 }
+/// # }
+/// ```
 #[macro_export]
 macro_rules! path {
     ( $( $segment:expr ),* $(,)? ) => {
