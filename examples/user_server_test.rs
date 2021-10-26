@@ -23,7 +23,8 @@
 //! $ cargo run --example user_server
 //! $ cargo test --example user_server_test
 
-#![allow(unused_imports, dead_code)]
+// I'm sorry but I hate having so much warnings when checking the codebase.
+#![allow(dead_code, unused_imports)]
 
 use http::StatusCode;
 use restest::{assert_body_matches, path, Context, Request};

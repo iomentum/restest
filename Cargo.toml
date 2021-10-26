@@ -17,9 +17,3 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.12", features = ["macros", "rt-multi-thread"] }
 trybuild = "1.0"
 warp = "0.3"
-
-# TODO: once the *old* assert_api is deprecated, remove the nightly feature
-restest = { path = ".", features = ["nightly"] }
-
-[features]
-nightly = []
