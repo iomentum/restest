@@ -5,7 +5,7 @@
 //!
 //! ## Description
 //!
-//! Let's model a simple server which stores information about its users.
+//! Let's model a small server which stores information about its users.
 //! More specifically, it stores their id (an Uuid) and year of birth.
 //! It exposes a REST API, where we can add a new user and query data about
 //! an user with a specific id.
