@@ -86,6 +86,29 @@ impl PatternVisitor {
         PatternVisitor::default()
     }
 
+    fn alter_lit_pattern(&mut self, pat: &mut Pat, pat_lit: PatLit) {
+        let ident = self.add_checked_variable(pat_lit);
+        let pat_ident = Self::mk_pat_ident(ident);
+        *pat = Pat::Ident(pat_ident);
+    }
+
+    fn add_checked_variable(&mut self, pat_lit: PatLit) -> Ident {
+        let ident = self.mk_checked_variables_internal_ident();
+        self.checked_variables.push((ident.clone(), pat_lit));
+
+        ident
+    }
+
+    fn mk_pat_ident(ident: Ident) -> PatIdent {
+        PatIdent {
+            attrs: Vec::new(),
+            by_ref: None,
+            mutability: None,
+            ident,
+            subpat: None,
+        }
+    }
+
     fn mk_checked_variables_internal_ident(&self) -> Ident {
         format_ident!("__restest_internal_{}", self.checked_variables.len())
     }
@@ -96,24 +119,14 @@ impl VisitMut for PatternVisitor {
         self.bound_variables.push(i.ident.clone());
     }
 
-    fn visit_pat_mut(&mut self, i: &mut Pat) {
-        match i {
-            Pat::Lit(lit) => {
-                let ident = self.mk_checked_variables_internal_ident();
-                self.checked_variables.push((ident.clone(), lit.clone()));
-
-                *i = Pat::Ident(PatIdent {
-                    attrs: Vec::new(),
-                    // TODO
-                    by_ref: None,
-                    // TODO
-                    mutability: None,
-                    ident,
-                    subpat: None,
-                });
+    fn visit_pat_mut(&mut self, pat: &mut Pat) {
+        match pat {
+            Pat::Lit(pat_lit) => {
+                let pat_lit = pat_lit.clone();
+                self.alter_lit_pattern(pat, pat_lit)
             }
 
-            _ => visit_mut::visit_pat_mut(self, i),
+            _ => visit_mut::visit_pat_mut(self, pat),
         }
     }
 }
