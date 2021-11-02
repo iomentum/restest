@@ -1,5 +1,7 @@
 extern crate proc_macro;
 
+use std::iter;
+
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
@@ -7,6 +9,7 @@ use syn::{
     parse_macro_input,
     punctuated::{Pair, Punctuated},
     token::{self, Brace, Bracket, Comma, Paren},
+    visit::Visit,
     visit_mut::{self, VisitMut},
     Arm, Expr, ExprIndex, ExprLit, ExprMacro, ExprMatch, ExprPath, ExprRange, ExprTuple, Ident,
     LitBool, Macro, MacroDelimiter, Pat, PatIdent, PatLit, PatSlice, PatTuple, PatWild, Path,
@@ -55,7 +58,7 @@ impl BodyMatchCall {
         });
         let guard = (if_, Box::new(true_));
 
-        let match_expr = ModifiedMatchExpr::new_initial(self.value, self.pat, guard);
+        let match_expr = SlicePatternModifier::new_initial(self.value, self.pat, guard);
 
         match_expr
             .expand(Expr::Verbatim(quote! { todo!() }))
@@ -79,6 +82,52 @@ struct BodyMatchCall {
     _comma1: Token![,],
     pat: Pat,
     _comma2: Option<Token![,]>,
+}
+
+/// Allows to extract a list of all the identifiers that are brought in scope
+/// by a given pattern.
+///
+/// This allows us to generate the body of the correct match pattern that we'll
+/// expand to.
+#[derive(Default)]
+struct BindingPatternsExtractor<'pat> {
+    bindings: Vec<&'pat Ident>,
+}
+
+impl<'pat> BindingPatternsExtractor<'pat> {
+    fn new(pat: &'pat Pat) -> BindingPatternsExtractor<'pat> {
+        let mut this = BindingPatternsExtractor::default();
+        this.visit_pat(pat);
+        this
+    }
+
+    fn expand_return_expr(self) -> ExprTuple {
+        let paren_token = Paren {
+            span: Span::call_site(),
+        };
+        let elems = self
+            .bindings
+            .into_iter()
+            .map(Self::mk_ident_expr)
+            .map(|i| Pair::Punctuated(i.clone(), Comma::default()))
+            .collect();
+
+        ExprTuple {
+            attrs: Vec::new(),
+            paren_token,
+            elems,
+        }
+    }
+
+    fn mk_ident_expr(ident: &Ident) -> Expr {
+        Expr::Verbatim(quote! { #ident })
+    }
+}
+
+impl<'pat> Visit<'pat> for BindingPatternsExtractor<'pat> {
+    fn visit_pat_ident(&mut self, i: &'pat PatIdent) {
+        self.bindings.push(&i.ident);
+    }
 }
 
 /// Allows to encode and expand a match expression that accepts slices patterns
@@ -140,19 +189,19 @@ struct BodyMatchCall {
 ///     }
 /// }
 /// ```
-struct ModifiedMatchExpr {
+struct SlicePatternModifier {
     expr: Expr,
     pat: Pat,
     sub_match: MatchExprRecursion,
 }
 
 enum MatchExprRecursion {
-    Recursive(Box<ModifiedMatchExpr>),
+    Recursive(Box<SlicePatternModifier>),
     Guarded((Token![if], Box<Expr>)),
 }
 
-impl ModifiedMatchExpr {
-    fn new_initial(expr: Expr, pat: Pat, guard: (Token![if], Box<Expr>)) -> ModifiedMatchExpr {
+impl SlicePatternModifier {
+    fn new_initial(expr: Expr, pat: Pat, guard: (Token![if], Box<Expr>)) -> SlicePatternModifier {
         let mut replacer = SlicePatternReplacer::new();
         let pat = replacer.alter_initial_pattern(pat);
 
@@ -163,7 +212,7 @@ impl ModifiedMatchExpr {
         expr: Expr,
         pats: Vec<PatSlice>,
         guard: (Token![if], Box<Expr>),
-    ) -> ModifiedMatchExpr {
+    ) -> SlicePatternModifier {
         let mut replacer = SlicePatternReplacer::new();
         let pat = replacer.alter_sub_pattern(pats);
 
@@ -175,13 +224,13 @@ impl ModifiedMatchExpr {
         pat: Pat,
         replacer: SlicePatternReplacer,
         guard: (token::If, Box<Expr>),
-    ) -> ModifiedMatchExpr {
+    ) -> SlicePatternModifier {
         let (extracted_values, corresponding_pattern) =
             replacer.extractable_tuple_and_corresponding_pattern();
         if extracted_values.elems.is_empty() {
             let sub_match = MatchExprRecursion::Guarded(guard);
 
-            ModifiedMatchExpr {
+            SlicePatternModifier {
                 expr,
                 pat,
                 sub_match,
@@ -189,11 +238,11 @@ impl ModifiedMatchExpr {
         } else {
             let sub_expr = Expr::from(extracted_values);
             let sub_match =
-                ModifiedMatchExpr::new_recursive(sub_expr, corresponding_pattern, guard);
+                SlicePatternModifier::new_recursive(sub_expr, corresponding_pattern, guard);
 
             let sub_match = MatchExprRecursion::Recursive(Box::new(sub_match));
 
-            ModifiedMatchExpr {
+            SlicePatternModifier {
                 expr,
                 pat,
                 sub_match,
@@ -451,6 +500,46 @@ mod tests {
 
     use super::*;
 
+    mod binding_patterns_extractor {
+        use super::*;
+
+        #[test]
+        fn extraction_simple() {
+            let pat = parse_quote! { foo };
+
+            let return_expr = BindingPatternsExtractor::new(&pat).expand_return_expr();
+
+            let left = return_expr.to_token_stream().to_string();
+            let right = quote! { (foo,) }.to_string();
+
+            assert_eq!(left, right);
+        }
+
+        #[test]
+        fn extraction_in_subpattern() {
+            let pat = parse_quote! { [foo, bar, .., baz ]};
+
+            let return_expr = BindingPatternsExtractor::new(&pat).expand_return_expr();
+
+            let left = return_expr.to_token_stream().to_string();
+            let right = quote! { (foo, bar, baz,) }.to_string();
+
+            assert_eq!(left, right);
+        }
+
+        #[test]
+        fn handles_at_pattern() {
+            let pat = parse_quote! { foo @ [] };
+
+            let return_expr = BindingPatternsExtractor::new(&pat).expand_return_expr();
+
+            let left = return_expr.to_token_stream().to_string();
+            let right = quote! { (foo,) }.to_string();
+
+            assert_eq!(left, right);
+        }
+    }
+
     #[test]
     fn expand_2_base_case() {
         let call: BodyMatchCall = parse_quote! {
@@ -463,7 +552,7 @@ mod tests {
         let right = quote! {
             match foo {
                 __restest__array_0 => match (__restest__array_0[..],) {
-                    ([a, b, c],) => todo!(),
+                    ([a, b, c],) if true => todo!(),
                     _ => panic!("Matching failed"),
                 },
                 _ => panic!("Matching failed"),
@@ -486,7 +575,7 @@ mod tests {
             match foo {
                 __restest__array_0 => match (__restest__array_0[..],) {
                     ([__restest__array_0, b, c],) => match (__restest__array_0[..],) {
-                        ([a],) => todo!(),
+                        ([a],) if true => todo!(),
                         _ => panic!("Matching failed"),
                     },
                     _ => panic!("Matching failed"),
@@ -510,7 +599,7 @@ mod tests {
         let right = quote! {
             match foo {
                 (__restest__array_0, __restest__array_1) => match (__restest__array_0[..], __restest__array_1[..],) {
-                    ([foo], [bar],) => todo!(),
+                    ([foo], [bar],) if true => todo!(),
                     _ => panic!("Matching failed"),
                 },
                 _ => panic!("Matching failed"),
