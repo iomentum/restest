@@ -12,8 +12,8 @@ use syn::{
     visit::Visit,
     visit_mut::{self, VisitMut},
     Arm, Expr, ExprIndex, ExprLit, ExprMacro, ExprMatch, ExprPath, ExprRange, ExprTuple, Ident,
-    LitBool, Macro, MacroDelimiter, Pat, PatIdent, PatLit, PatSlice, PatTuple, PatWild, Path,
-    RangeLimits, Token,
+    Lit, LitBool, LitStr, Macro, MacroDelimiter, Pat, PatIdent, PatLit, PatSlice, PatTuple,
+    PatWild, Path, RangeLimits, Token,
 };
 
 #[proc_macro]
@@ -127,6 +127,70 @@ impl<'pat> BindingPatternsExtractor<'pat> {
 impl<'pat> Visit<'pat> for BindingPatternsExtractor<'pat> {
     fn visit_pat_ident(&mut self, i: &'pat PatIdent) {
         self.bindings.push(&i.ident);
+    }
+}
+
+/// Allows to perform pattern matching over `String` using literals.
+///
+/// To do so, we need to alter the pattern and change every instance of string
+/// literal pattern into a binding and check for equality in the final guard.
+#[derive(Default)]
+struct StringLiteralPatternModifier {
+    conditions: Vec<(Ident, LitStr)>,
+}
+
+impl StringLiteralPatternModifier {
+    fn new(pat: &mut Pat) -> StringLiteralPatternModifier {
+        let mut this = StringLiteralPatternModifier::default();
+
+        this.visit_pat_mut(pat);
+        this
+    }
+
+    fn expand_guard_expr(self) -> Expr {
+        let (names, values): (Vec<_>, Vec<_>) = self.conditions.into_iter().unzip();
+        Expr::Verbatim(quote! {
+            true #( && #names == #values )*
+        })
+    }
+
+    fn add_literal_pattern(&mut self, lit: LitStr) -> Ident {
+        let name = self.mk_ident();
+        self.conditions.push((name.clone(), lit));
+        name
+    }
+
+    fn alter_pattern(pat: &mut Pat, ident: Ident) {
+        *pat = Pat::Ident(PatIdent {
+            attrs: Vec::new(),
+            by_ref: None,
+            mutability: None,
+            ident,
+            subpat: None,
+        })
+    }
+
+    fn mk_ident(&self) -> Ident {
+        format_ident!("__restest__str_{}", self.conditions.len())
+    }
+}
+
+impl VisitMut for StringLiteralPatternModifier {
+    fn visit_pat_mut(&mut self, pat: &mut Pat) {
+        match pat {
+            Pat::Lit(PatLit { expr, .. }) => match expr.as_ref() {
+                Expr::Lit(ExprLit {
+                    lit: Lit::Str(lit), ..
+                }) => {
+                    let ident = self.add_literal_pattern(lit.clone());
+                    Self::alter_pattern(pat, ident);
+                }
+
+                _ => visit_mut::visit_pat_mut(self, pat),
+            },
+
+            _ => visit_mut::visit_pat_mut(self, pat),
+        }
     }
 }
 
@@ -535,6 +599,91 @@ mod tests {
 
             let left = return_expr.to_token_stream().to_string();
             let right = quote! { (foo,) }.to_string();
+
+            assert_eq!(left, right);
+        }
+    }
+
+    mod string_literal_modifier {
+        use super::*;
+
+        #[test]
+        fn simple_alteration() {
+            let mut pat = parse_quote! { "foo" };
+
+            let _ = StringLiteralPatternModifier::new(&mut pat);
+
+            let left = pat.to_token_stream().to_string();
+            let right = quote! {
+                __restest__str_0
+            }
+            .to_string();
+
+            assert_eq!(left, right);
+        }
+
+        #[test]
+        fn simple_guard_condition() {
+            let mut pat = parse_quote! { "foo" };
+
+            let modifier = StringLiteralPatternModifier::new(&mut pat);
+
+            let left = modifier.expand_guard_expr().to_token_stream().to_string();
+            let right = quote! {
+                true && __restest__str_0 == "foo"
+            }
+            .to_string();
+
+            assert_eq!(left, right);
+        }
+
+        #[test]
+        fn alteration_in_subpatterns() {
+            let mut pat = parse_quote! {
+                [
+                    Foo { bar: "bar" },
+                    ("42"),
+                    [["hello"]],
+                ]
+            };
+
+            let _ = StringLiteralPatternModifier::new(&mut pat);
+
+            let left = pat.to_token_stream().to_string();
+            let right = quote! {
+                [
+                    Foo { bar: __restest__str_0 },
+                    (__restest__str_1),
+                    [[__restest__str_2]],
+                ]
+            }
+            .to_string();
+
+            assert_eq!(left, right);
+        }
+
+        #[test]
+        fn expansion_in_subpatterns() {
+            let mut pat = parse_quote! {
+                [
+                    Foo { bar: "bar" },
+                    ("42"),
+                    [["hello"]],
+                ]
+            };
+
+            let left = StringLiteralPatternModifier::new(&mut pat)
+                .expand_guard_expr()
+                .to_token_stream()
+                .to_string();
+
+            let right = quote! {
+                true
+                    && __restest__str_0 == "bar"
+                    && __restest__str_1 == "42"
+                    && __restest__str_2 == "hello"
+            }
+            .to_string();
 
             assert_eq!(left, right);
         }
