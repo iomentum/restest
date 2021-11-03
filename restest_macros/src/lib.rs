@@ -50,19 +50,16 @@ impl BodyMatchCall {
         }
     }
 
-    fn expand_(self) -> TokenStream {
+    fn expand_(mut self) -> TokenStream {
         let if_ = Token![if](Span::call_site());
-        let true_ = Expr::from(ExprLit {
-            attrs: Vec::new(),
-            lit: LitBool::new(true, Span::call_site()).into(),
-        });
-        let guard = (if_, Box::new(true_));
 
-        let match_expr = SlicePatternModifier::new_initial(self.value, self.pat, guard);
+        let bindings = BindingPatternsExtractor::new(&self.pat).expand_return_expr();
+        let guard_condition = StringLiteralPatternModifier::new(&mut self.pat).expand_guard_expr();
+        let final_expansion =
+            SlicePatternModifier::new(self.value, self.pat, (if_, Box::new(guard_condition)))
+                .expand(bindings.into());
 
-        match_expr
-            .expand(Expr::Verbatim(quote! { todo!() }))
-            .to_token_stream()
+        final_expansion.into_token_stream()
     }
 }
 
@@ -265,7 +262,7 @@ enum MatchExprRecursion {
 }
 
 impl SlicePatternModifier {
-    fn new_initial(expr: Expr, pat: Pat, guard: (Token![if], Box<Expr>)) -> SlicePatternModifier {
+    fn new(expr: Expr, pat: Pat, guard: (Token![if], Box<Expr>)) -> SlicePatternModifier {
         let mut replacer = SlicePatternReplacer::new();
         let pat = replacer.alter_initial_pattern(pat);
 
@@ -701,7 +698,7 @@ mod tests {
         let right = quote! {
             match foo {
                 __restest__array_0 => match (__restest__array_0[..],) {
-                    ([a, b, c],) if true => todo!(),
+                    ([a, b, c],) if true => (a, b, c,),
                     _ => panic!("Matching failed"),
                 },
                 _ => panic!("Matching failed"),
@@ -724,7 +721,7 @@ mod tests {
             match foo {
                 __restest__array_0 => match (__restest__array_0[..],) {
                     ([__restest__array_0, b, c],) => match (__restest__array_0[..],) {
-                        ([a],) if true => todo!(),
+                        ([a],) if true => (a, b, c,),
                         _ => panic!("Matching failed"),
                     },
                     _ => panic!("Matching failed"),
@@ -748,7 +745,7 @@ mod tests {
         let right = quote! {
             match foo {
                 (__restest__array_0, __restest__array_1) => match (__restest__array_0[..], __restest__array_1[..],) {
-                    ([foo], [bar],) if true => todo!(),
+                    ([foo], [bar],) if true => (foo, bar,),
                     _ => panic!("Matching failed"),
                 },
                 _ => panic!("Matching failed"),
