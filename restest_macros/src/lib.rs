@@ -1,6 +1,6 @@
 extern crate proc_macro;
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, iter};
 
 use proc_macro2::Span;
 use quote::{format_ident, quote, ToTokens};
@@ -8,11 +8,11 @@ use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::{Pair, Punctuated},
-    token::{self, Brace, Comma, FatArrow, Match, Paren},
+    token::{Brace, Comma, FatArrow, Paren},
     visit::Visit,
     visit_mut::{self, VisitMut},
-    Arm, Expr, ExprLit, ExprMacro, ExprMatch, ExprTuple, Ident, Lit, LitStr, Local, Macro,
-    MacroDelimiter, Pat, PatIdent, PatLit, PatSlice, PatTuple, PatWild, Path, Stmt, Token,
+    Arm, Expr, ExprLit, ExprMatch, ExprTuple, Ident, Lit, LitStr, Local, Pat, PatIdent, PatLit,
+    PatSlice, PatTuple, PatWild, Stmt, Token,
 };
 
 #[proc_macro]
@@ -36,15 +36,14 @@ impl BodyMatchCall {
 
         let let_token = Token![let](Span::call_site());
         let equal = Token![=](Span::call_site());
-        let if_ = Token![if](Span::call_site());
         let semi_token = Token![;](Span::call_site());
 
         let (bindings, return_expr) =
             BindingPatternsExtractor::new(&self.pat).expand_bindings_and_return_expr();
         let guard_condition = StringLiteralPatternModifier::new(&mut self.pat).expand_guard_expr();
         let match_expr =
-            SlicePatternModifier::new(self.value, self.pat, (if_, Box::new(guard_condition)))
-                .expand(return_expr.into());
+            SlicePatternModifier::new(self.value, self.pat, guard_condition, return_expr.into())
+                .expand();
 
         let pat = bindings.into();
         let match_expr = Box::new(match_expr.into());
@@ -143,7 +142,7 @@ impl<'pat> BindingPatternsExtractor<'pat> {
 
         PatTuple {
             attrs: Vec::new(),
-            paren_token: paren_token.clone(),
+            paren_token,
             elems,
         }
     }
@@ -336,7 +335,7 @@ impl VisitMut for StringLiteralPatternModifier {
 ///
 /// The last iteration alters slice pattern `(3)` and expands to:
 ///
-/// ```
+/// ```none
 /// match <expr> {
 ///     __restest__slice_0 => match __restest__slice_0[..] {
 ///         [__restest__slice_1, __restest__slice_2] => match __restest__slice_1[..] {
@@ -348,86 +347,78 @@ impl VisitMut for StringLiteralPatternModifier {
 /// }
 /// ```
 struct SlicePatternModifier {
-    expr: Expr,
-    pat: Pat,
-    sub_match: MatchExprRecursion,
-}
-
-enum MatchExprRecursion {
-    Recursive(Box<SlicePatternModifier>),
-    Guarded((Token![if], Box<Expr>)),
+    first_expr: Expr,
+    first_pat: Pat,
+    nested_matches: Vec<(Expr, Pat)>,
+    final_guard_condition: Expr,
+    return_expr: Expr,
 }
 
 impl SlicePatternModifier {
-    fn new(expr: Expr, pat: Pat, guard: (Token![if], Box<Expr>)) -> SlicePatternModifier {
+    fn new(
+        matched_expr: Expr,
+        pat: Pat,
+        final_guard_condition: Expr,
+        return_expr: Expr,
+    ) -> SlicePatternModifier {
+        let mut sub_slice_patterns = Vec::new();
+
         let mut replacer = SlicePatternReplacer::new();
         let pat = replacer.alter_initial_pattern(pat);
-        let residual_pats = VecDeque::new();
 
-        Self::maybe_recurse(expr, pat, residual_pats, replacer, guard)
-    }
+        let mut unaltered_slice_patterns = VecDeque::from_iter(replacer.extracted_slice_patterns());
 
-    fn new_recursive(
-        expr: Expr,
-        pat: PatSlice,
-        residual_pats: VecDeque<(Ident, PatSlice)>,
-        guard: (Token![if], Box<Expr>),
-    ) -> SlicePatternModifier {
-        let mut replacer = SlicePatternReplacer::new();
-        let pat = replacer.alter_pat_slice(pat);
+        while let Some((ident, pat)) = unaltered_slice_patterns.pop_front() {
+            let mut replacer = SlicePatternReplacer::new();
+            let expr = Self::mk_match_expr(ident);
+            let pat = replacer.alter_pat_slice(pat).into();
 
-        Self::maybe_recurse(expr, pat, residual_pats, replacer, guard)
-    }
+            sub_slice_patterns.push((expr, pat));
+            unaltered_slice_patterns.extend(replacer.extracted_slice_patterns());
+        }
 
-    fn maybe_recurse(
-        expr: Expr,
-        pat: Pat,
-        mut residuals: VecDeque<(Ident, PatSlice)>,
-        replacer: SlicePatternReplacer,
-        guard: (token::If, Box<Expr>),
-    ) -> SlicePatternModifier {
-        residuals.extend(replacer.extracted_slice_patterns());
-
-        if let Some((next_ident, next_pat)) = residuals.pop_front() {
-            let next_expr = Self::mk_match_expr(next_ident);
-
-            let sub_match =
-                SlicePatternModifier::new_recursive(next_expr, next_pat, residuals, guard);
-            let sub_match = MatchExprRecursion::Recursive(Box::new(sub_match));
-
-            SlicePatternModifier {
-                expr,
-                pat,
-                sub_match,
-            }
-        } else {
-            let sub_match = MatchExprRecursion::Guarded(guard);
-
-            SlicePatternModifier {
-                expr,
-                pat,
-                sub_match,
-            }
+        SlicePatternModifier {
+            first_expr: matched_expr,
+            first_pat: pat,
+            nested_matches: sub_slice_patterns,
+            final_guard_condition,
+            return_expr,
         }
     }
 
-    fn mk_match_expr(ident: Ident) -> Expr {
-        Expr::Verbatim(quote! { #ident[..] })
-    }
+    fn expand(self) -> ExprMatch {
+        let mut nesting = iter::once((self.first_expr, self.first_pat))
+            .chain(self.nested_matches)
+            .rev();
 
-    fn expand(self, ending_expr: Expr) -> ExprMatch {
-        let match_token = Match::default();
-        let brace_token = Brace::default();
+        let (innermost_expr, innermost_pat) = nesting.next().unwrap();
 
-        let (guard, body) = match self.sub_match {
-            MatchExprRecursion::Recursive(sub_match) => {
-                (None, Expr::Match(sub_match.expand(ending_expr)))
-            }
-            MatchExprRecursion::Guarded(guard) => (Some(guard), ending_expr),
+        let guard = (
+            <Token![if]>::default(),
+            Box::new(self.final_guard_condition),
+        );
+
+        let arms = vec![
+            Self::mk_arm(innermost_pat, Some(guard), self.return_expr),
+            Self::catchall_arm(),
+        ];
+
+        let innermost_match = ExprMatch {
+            attrs: Vec::new(),
+            match_token: <Token![match]>::default(),
+            expr: Box::new(innermost_expr),
+            brace_token: Brace::default(),
+            arms,
         };
 
-        let expr = Box::new(self.expr);
-        let arms = vec![Self::mk_arm(self.pat, guard, body), Self::catchall_arm()];
+        nesting.fold(innermost_match, Self::nest_match)
+    }
+
+    fn nest_match(inner: ExprMatch, (expr, pat): (Expr, Pat)) -> ExprMatch {
+        let match_token = <Token![match]>::default();
+        let expr = Box::new(expr);
+        let brace_token = Brace::default();
+        let arms = vec![Self::mk_arm(pat, None, inner.into()), Self::catchall_arm()];
 
         ExprMatch {
             attrs: Vec::new(),
@@ -464,18 +455,12 @@ impl SlicePatternModifier {
         }
     }
 
+    fn mk_match_expr(ident: Ident) -> Expr {
+        Expr::Verbatim(quote! { #ident[..] })
+    }
+
     fn mk_panic_expr() -> Expr {
-        Expr::Macro(ExprMacro {
-            attrs: Vec::new(),
-            mac: Macro {
-                path: Path::from(Ident::new("panic", Span::call_site())),
-                bang_token: Token![!](Span::call_site()),
-                delimiter: MacroDelimiter::Paren(Paren {
-                    span: Span::call_site(),
-                }),
-                tokens: quote! { "Matching failed" },
-            },
-        })
+        Expr::Verbatim(quote! { panic!("Matching failed")})
     }
 }
 
@@ -499,9 +484,9 @@ impl SlicePatternReplacer {
         pat
     }
 
-    fn alter_pat_slice(&mut self, mut pat: PatSlice) -> Pat {
+    fn alter_pat_slice(&mut self, mut pat: PatSlice) -> PatSlice {
         self.visit_pat_slice_mut(&mut pat);
-        Pat::Slice(pat)
+        pat
     }
 
     fn extracted_slice_patterns(self) -> Vec<(Ident, PatSlice)> {
