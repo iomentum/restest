@@ -106,6 +106,31 @@ impl Request<()> {
     }
 }
 
+/// Allows encode metadata in order to create a [`Request`].
+///
+/// This type can be created by calling either [`Request::get`] or
+/// [`Request::post`]. Specifically, this type allows to encode the request
+/// header with [`RequestBuilder::with_header`], and to create the final
+/// [`Request`] type by calling [`RequestBuilder::with_body`].
+///
+/// This allows to create [`Request`] types, as shown in the following example:
+///
+/// ```rust
+/// use restest::Request;
+///
+/// use serde::Serialize;
+///
+/// let request = Request::get("user")
+///     .with_header("token", "mom-said-yes")
+///     .with_body(GetUserRequest {
+///         login: String::from("jdoe")
+///     });
+///
+/// #[derive(Serialize)]
+/// struct GetUserRequest {
+///     login: String,
+/// }
+/// ```
 pub struct RequestBuilder {
     header: HashMap<String, String>,
     method: Method,
@@ -113,6 +138,7 @@ pub struct RequestBuilder {
 }
 
 impl RequestBuilder {
+    /// Adds a header key and value to the request.
     pub fn with_header(mut self, key: impl ToString, value: impl ToString) -> RequestBuilder {
         let previous_entry = self.header.insert(key.to_string(), value.to_string());
         assert!(previous_entry.is_none(), "Attempt to replace a header");
@@ -120,6 +146,7 @@ impl RequestBuilder {
         self
     }
 
+    /// Specifies a body, returns the final [`Request`] object.
     pub fn with_body<B>(self, body: B) -> Request<B>
     where
         B: Serialize,
@@ -144,11 +171,22 @@ pub(crate) enum Method {
     Post,
 }
 
+/// The data returned by the server once the request is performed.
 pub struct RequestResult {
     pub(crate) response: Response,
 }
 
 impl RequestResult {
+    /// Checks if the response status meets an expected status code and convert
+    /// the body to a concrete type.
+    ///
+    /// This method uses `serde` internally, so the output type must implement
+    /// [`DeserializeOwned`].
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the server response status is not equal to
+    /// `status` or if the body can not be deserialized to the specified type.
     #[track_caller]
     pub async fn expect_status<T>(self, status: StatusCode) -> T
     where
