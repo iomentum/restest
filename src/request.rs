@@ -1,9 +1,16 @@
 //! The various states of a request.
 //!
 //! A request has a specific lifecycle:
-//!   - a builder is created using one of [`Request::get`], [`Request::put`]
-//! and so on,
-//!   -
+//!   - a [`RequestBuilder`] is created using one of [`Request::get`],
+//! [`Request::post`] and so on,
+//!   - a [`Request`] is created by calling
+//! [`with_body`](RequestBuilder::with_body) on the [`RequestBuilder`],
+//!   - the [`Request`] is passed as argument of
+//! [`Context::run`](crate::Context), returning a [`RequestResult`],
+//!   - the final request body is constructed by calling
+//! [`expect_status`](RequestResult::expect_status).
+//!
+//! The documentation for [`Request`] provide more specific description.
 
 use std::collections::HashMap;
 
@@ -26,9 +33,8 @@ use crate::url::IntoUrl;
 /// [`with_header`](RequestBuilder::with_header) method to specify a header key
 /// to the request.
 ///
-/// After every metadata is encoded, the
-/// [`with_body`](RequestBuilder::with_body) method allows to specify a body and
-/// create the final [`Request`] object.
+/// Once the metadata is encoded, the [`with_body`](RequestBuilder::with_body)
+/// method allows to specify a body and create the final [`Request`] object.
 ///
 /// The following code snippet shows all these three steps:
 ///
