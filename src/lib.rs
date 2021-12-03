@@ -1,7 +1,17 @@
+#![deny(missing_docs)]
+
 //! Black-box integration test for REST APIs in Rust.
 //!
 //! `restest` provides primitives that allow to write REST API in a declarative
-//! manner.
+//! manner. It leverages the Rust test framework and uses macro-assisted pattern
+//! tho assert for a pattern and add specified variables to scope.
+//!
+//! # Adding to the `Cargo.toml`
+//!
+//! `restest` provides test-only code. As such, it can be added as a
+//! dev-dependency:
+//!
+#![doc = dep_doc::dev_dep_doc!()]
 //!
 //! # Example
 //!
@@ -15,8 +25,8 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() {
-//! let request = Request::post(path!["users"]).with_body(PostUser {
-//!     year_of_birth: 2000,
+//! let request = Request::post(path!["user/ghopper"]).with_body(PostUser {
+//!     year_of_birth: 1943,
 //! });
 //!
 //! let body = CONTEXT
@@ -28,7 +38,7 @@
 //! assert_body_matches! {
 //!     body,
 //!     User {
-//!         year_of_birth: 2000,
+//!         year_of_birth: 1943,
 //!         ..
 //!     }
 //! }
@@ -148,7 +158,7 @@
 //!
 //! ```rust
 //! use restest::assert_body_matches;
-//! use uuid::Uuid;
+//! # use uuid::Uuid;
 //!
 //! # let user = User {
 //! #     name: "Grace Hopper".to_string(),
@@ -185,9 +195,14 @@
 /// bindings to the current scope.
 ///
 /// This pattern supports all the Rust pattern syntax, with a few additions:
-///   - matching on `String` can be done with string literals,
+///   - matching on [`String`] can be done with string literals,
+///   - matching on [`Vec`] can be done using slice patterns,
 ///   - values that are bound to variables are available in the whole scope,
 ///     allowing for later use.
+///
+/// # Panics
+///
+/// This macro will panic if the body does not match the provided pattern.
 ///
 /// # Example
 ///
@@ -259,11 +274,10 @@ pub use restest_macros::assert_body_matches;
 
 pub mod context;
 pub mod request;
-pub mod url;
+mod url;
 
 pub use context::Context;
 pub use request::Request;
-pub use url::IntoUrl;
 
 /// Creates a path from multiple segments.
 ///
@@ -274,6 +288,7 @@ pub use url::IntoUrl;
 ///
 /// ```rust
 /// use restest::{path, Request};
+/// use uuid::Uuid;
 ///
 /// let my_user_id = Uuid::new_v4();
 ///
@@ -281,10 +296,6 @@ pub use url::IntoUrl;
 ///     .with_body(())
 ///     // the rest of the request
 /// #   ;
-/// # struct Uuid;
-/// # impl Uuid {
-/// #     fn new_v4() -> usize { 42 }
-/// # }
 /// ```
 #[macro_export]
 macro_rules! path {

@@ -12,8 +12,8 @@ use crate::request::{Method, Request, RequestResult};
 
 /// A structure that holds information about the backend we're about to query.
 ///
-/// All the methods it implements are `const`, meaning it can be placed in a
-/// module, and accessed from anywhere in the module.
+/// All its setters are `const`, meaning it can be placed in a module, and
+/// accessed from anywhere in the module.
 ///
 /// # Example
 ///
@@ -53,6 +53,8 @@ impl Context {
     }
 
     /// Sets a host value.
+    ///
+    /// The previously-set host is discarded.
     pub const fn with_host(self, host: &'static str) -> Context {
         let port = self.port;
 
@@ -60,6 +62,8 @@ impl Context {
     }
 
     /// Sets a port value.
+    ///
+    /// The previously-set port is discarded.
     pub const fn with_port(self, port: u16) -> Context {
         let host = self.host;
 

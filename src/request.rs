@@ -1,4 +1,9 @@
-//! An HTTP request we're about to run.
+//! The various states of a request.
+//!
+//! A request has a specific lifecycle:
+//!   - a builder is created using one of [`Request::get`], [`Request::put`]
+//! and so on,
+//!   -
 
 use std::collections::HashMap;
 
@@ -172,6 +177,9 @@ pub(crate) enum Method {
 }
 
 /// The data returned by the server once the request is performed.
+///
+/// This datatype is meant for intermediary representation. It can be converted
+/// to a concrete type by calling [`RequestResult::expect_status`].
 pub struct RequestResult {
     pub(crate) response: Response,
 }
