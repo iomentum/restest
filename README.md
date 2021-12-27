@@ -1,3 +1,5 @@
+# `restest`
+
 Black-box integration test for REST APIs in Rust.
 
 `restest` provides primitives that allow to write REST API in a declarative
