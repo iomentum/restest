@@ -206,7 +206,12 @@ impl RequestResult {
     where
         T: DeserializeOwned,
     {
-        assert_eq!(self.response.status(), status);
+        assert_eq!(
+            self.response.status(),
+            status,
+            "Unexpected server response code. Body is {}",
+            self.response.text().await.unwrap(),
+        );
 
         self.response
             .json()
