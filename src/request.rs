@@ -220,7 +220,7 @@ pub(crate) enum Method {
     Get,
     Post,
     Put,
-    Delete
+    Delete,
 }
 
 /// The data returned by the server once the request is performed.

@@ -27,16 +27,16 @@
 //! $ cargo run --example user_server
 //! $ cargo test --example user_server_test
 
+use http::StatusCode;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
-use http::StatusCode;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use warp::{body, filters::method, path, Filter, Rejection, Reply};
 use warp::reply::*;
+use warp::{body, filters::method, path, Filter, Rejection, Reply};
 
 /// An in-memory user database.
 #[derive(Clone, Debug, Default)]
@@ -74,12 +74,12 @@ impl Database {
     }
 
     fn delete_route(self) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
-        method::delete()
-            .and(path::param())
-            .map(move |id| match self.users.lock().unwrap().remove(&id) {
+        method::delete().and(path::param()).map(move |id| {
+            match self.users.lock().unwrap().remove(&id) {
                 Some(_) => with_status(json(&"User deleted"), StatusCode::OK),
                 None => with_status(json(&"Failed to delete user"), StatusCode::NOT_FOUND),
-            })
+            }
+        })
     }
 
     fn put_route(self) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
@@ -126,12 +126,7 @@ async fn main() {
     let put = path::path("users").and(db.clone().put_route());
     let delete = path::path("users").and(db.delete_route());
 
-    let server = warp::serve(
-        post
-            .or(get)
-            .or(put)
-            .or(delete)
-    ).run(([127, 0, 0, 1], 8080));
+    let server = warp::serve(post.or(get).or(put).or(delete)).run(([127, 0, 0, 1], 8080));
 
     server.await
 }
