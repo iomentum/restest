@@ -54,12 +54,12 @@ struct User {
 /// Let's tell to restest which port should be used for our tests:
 const CONTEXT: Context = Context::new().with_port(8080);
 
-/// Test PUT route.
+/// Test POST route.
 ///
 /// We send a request adding a new user to the database, and tell what we expect
 /// as a response.
 #[tokio::test]
-pub async fn put_user() {
+pub async fn post_user() {
     // Let's create a Request object, representing what we're about to ask to
     // the server.
     let request = Request::post("users").with_body(UserInput {
@@ -73,7 +73,7 @@ pub async fn put_user() {
     let user = CONTEXT
         .run(request)
         .await
-        .expect_status(StatusCode::OK)
+        .expect_status(StatusCode::CREATED)
         .await;
 
     assert_body_matches! {
@@ -88,7 +88,7 @@ pub async fn put_user() {
 /// can ensure that both profiles are equal.
 #[tokio::test]
 pub async fn get_user() {
-    // Create a new Request object, just as we did for the put_user test.
+    // Create a new Request object, just as we did for the post_user test.
     let request = Request::post("users").with_body(UserInput {
         year_of_birth: 2000,
     });
@@ -97,7 +97,7 @@ pub async fn get_user() {
     let user = CONTEXT
         .run(request)
         .await
-        .expect_status(StatusCode::OK)
+        .expect_status(StatusCode::CREATED)
         .await;
 
     // Here is a little trick: we need to get back the user ID so that we can
@@ -121,6 +121,92 @@ pub async fn get_user() {
     assert_body_matches! {
         response,
         User { year_of_birth: 2000, .. },
+    };
+}
+
+/// Test for the DELETE route.
+///
+/// We add a new user to the database, then delete it and ensure that the
+/// server returns a 200 status code.
+///
+/// We then try to delete the same user again and ensure that the server
+/// returns a 404 status code.
+#[tokio::test]
+pub async fn delete_user() {
+    // Create a new Request object, just as we did for the post_user test.
+    let request = Request::post("users").with_body(UserInput {
+        year_of_birth: 2000,
+    });
+
+    // Similarly, execute the said request and get the output.
+    let user = CONTEXT
+        .run(request)
+        .await
+        .expect_status(StatusCode::CREATED)
+        .await;
+
+    assert_body_matches! {
+        user,
+        User { id, year_of_birth: 2000 },
+    };
+
+    let request = Request::delete(path!["users", id]).with_body(());
+
+    CONTEXT
+        .run(request)
+        .await
+        .expect_status::<String>(StatusCode::OK)
+        .await;
+
+    // We try to delete the same user again and ensure that the server
+    // returns a 404 status code.
+    let request = Request::delete(path!["users", id]).with_body(());
+
+    CONTEXT
+        .run(request)
+        .await
+        .expect_status::<String>(StatusCode::NOT_FOUND)
+        .await;
+}
+
+/// Test for the PUT route.
+///
+/// We add a new user to the database, then update its profile and ensure that
+/// the server returns a 200 status code.
+#[tokio::test]
+pub async fn put_user() {
+    // Create a new Request object, just as we did for the post_user test.
+    let request = Request::post("users").with_body(UserInput {
+        year_of_birth: 2000,
+    });
+
+    // Similarly, execute the said request and get the output.
+    let user = CONTEXT
+        .run(request)
+        .await
+        .expect_status(StatusCode::CREATED)
+        .await;
+
+    assert_body_matches! {
+        user,
+        User { id, year_of_birth: 2000 },
+    };
+
+    // We can now use the id variable to create another request.
+    let request = Request::put(path!["users", id]).with_body(UserInput {
+        year_of_birth: 2001,
+    });
+
+    let response = CONTEXT
+        .run(request)
+        .await
+        .expect_status(StatusCode::OK)
+        .await;
+
+    // We can ensure that the returned year of birth is now correct.
+    assert_body_matches! {
+        response,
+        User { year_of_birth: 2001, .. },
     };
 }
 

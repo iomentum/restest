@@ -82,6 +82,8 @@ impl Context {
         let create_request = match request.method {
             Method::Get => Client::get,
             Method::Post => Client::post,
+            Method::Put => Client::put,
+            Method::Delete => Client::delete,
         };
 
         let url = format!("{}:{}{}", self.host, self.port, request.url);
