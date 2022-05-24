@@ -88,7 +88,7 @@ pub async fn post_user() {
 /// can ensure that both profiles are equal.
 #[tokio::test]
 pub async fn get_user() {
-    // Create a new Request object, just as we did for the put_user test.
+    // Create a new Request object, just as we did for the post_user test.
     let request = Request::post("users").with_body(UserInput {
         year_of_birth: 2000,
     });
@@ -133,7 +133,7 @@ pub async fn get_user() {
 /// returns a 404 status code.
 #[tokio::test]
 pub async fn delete_user() {
-    // Create a new Request object, just as we did for the put_user test.
+    // Create a new Request object, just as we did for the post_user test.
     let request = Request::post("users").with_body(UserInput {
         year_of_birth: 2000,
     });
@@ -175,7 +175,7 @@ pub async fn delete_user() {
 /// the server returns a 200 status code.
 #[tokio::test]
 pub async fn put_user() {
-    // Create a new Request object, just as we did for the put_user test.
+    // Create a new Request object, just as we did for the post_user test.
     let request = Request::post("users").with_body(UserInput {
         year_of_birth: 2000,
     });
