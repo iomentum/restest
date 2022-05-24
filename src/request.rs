@@ -115,12 +115,51 @@ impl Request<()> {
             url,
         }
     }
+
+    /// Creates a PUT request builder for a specific URL.
+    ///
+    /// # Specifying an URL
+    ///
+    /// The url argument must be either a string literal or the value produced
+    /// by the [`path`] macro. Only the absolute path to the resource must be
+    /// passed.
+    ///
+    /// Refer to the [`get`][Request::get] method documentation for a
+    /// self-describing example.
+    pub fn put(url: impl IntoUrl) -> RequestBuilder {
+        let url = url.into_url();
+        RequestBuilder {
+            header: HashMap::new(),
+            method: Method::Put,
+            url,
+        }
+    }
+
+    /// Creates a DELETE request builder for a specific URL.
+    ///
+    /// # Specifying an URL
+    ///
+    /// The url argument must be either a string literal or the value produced
+    /// by the [`path`] macro. Only the absolute path to the resource must be
+    /// passed.
+    ///
+    /// Refer to the [`get`][Request::get] method documentation for a
+    /// self-describing example.
+    pub fn delete(url: impl IntoUrl) -> RequestBuilder {
+        let url = url.into_url();
+        RequestBuilder {
+            header: HashMap::new(),
+            method: Method::Delete,
+            url,
+        }
+    }
 }
 
 /// Allows encode metadata in order to create a [`Request`].
 ///
-/// This type can be created by calling either [`Request::get`] or
-/// [`Request::post`]. Specifically, this type allows to encode the request
+/// This type can be created by calling either [`Request::get`],
+/// [`Request::post`], [`Request::put`] or [`Request::delete`].
+/// Specifically, this type allows to encode the request
 /// header with [`RequestBuilder::with_header`], and to create the final
 /// [`Request`] type by calling [`RequestBuilder::with_body`].
 ///
@@ -180,6 +219,8 @@ impl RequestBuilder {
 pub(crate) enum Method {
     Get,
     Post,
+    Put,
+    Delete
 }
 
 /// The data returned by the server once the request is performed.

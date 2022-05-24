@@ -114,7 +114,7 @@
 //! ```
 //!
 //! Similarly, POST requests can be creating by using [`Request::post`] instead
-//! of [`Request::get`].
+//! of [`Request::get`]. The same is true for PUT and DELETE requests.
 //!
 //! # Performing the request
 //!
