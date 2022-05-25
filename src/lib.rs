@@ -100,17 +100,16 @@
 //!
 //! Running [`Request::get`] allows to construct a GET request to a specific
 //! URL. Header keys can be specified by calling the
-//! [`with_header`](request::RequestBuilder::with_header) method. The
-//! final [`Request`] is built by calling the
-//! [`with_body`](request::RequestBuilder::with_body) method, which
+//! [`with_header`](request::Request::with_header) method.
+//! A body can be specified by calling the
+//! [`with_body`](request::Request::with_body) method, which
 //! allows to add a body.
 //!
 //! ```rust
 //! use restest::{path, Request};
 //!
 //! let request = Request::get(path!["users", "scrabsha"])
-//!     .with_header("token", "mom-said-yes")
-//!     .with_body(());
+//!     .with_header("token", "mom-said-yes");
 //! ```
 //!
 //! Similarly, POST requests can be creating by using [`Request::post`] instead
@@ -133,7 +132,7 @@
 //! # const CONTEXT: Context = Context::new();
 //! # #[tokio::main]
 //! # async fn main() {
-//! # let request = Request::get("foo").with_body(());
+//! # let request = Request::get("foo");
 //! let user: User = CONTEXT
 //!     .run(request)
 //!     .await
@@ -293,7 +292,6 @@ pub use request::Request;
 /// let my_user_id = Uuid::new_v4();
 ///
 /// Request::get(path!["users", my_user_id])
-///     .with_body(())
 ///     // the rest of the request
 /// #   ;
 /// ```
