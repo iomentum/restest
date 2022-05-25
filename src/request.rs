@@ -1,10 +1,10 @@
 //! The various states of a request.
 //!
 //! A request has a specific lifecycle:
-//!   - a [`RequestBuilder`] is created using one of [`Request::get`],
+//!   - a [`Request`] is created using one of [`Request::get`],
 //! [`Request::post`] and so on,
-//!   - a [`Request`] is created by calling
-//! [`with_body`](RequestBuilder::with_body) on the [`RequestBuilder`],
+//!   - the request can be modified using the different methods un [`Request`], such as
+//! [`with_body`](Request::with_body) or [`with_header`](Request::with_header),
 //!   - the [`Request`] is passed as argument of
 //! [`Context::run`](crate::Context), returning a [`RequestResult`],
 //!   - the final request body is constructed by calling
@@ -24,17 +24,17 @@ use crate::url::IntoUrl;
 ///
 /// # Creating a request
 ///
-/// First a [`RequestBuilder`] must be created. This object will allow to
+/// First a [`Request`] must be created. This object will allow to
 /// encode the request information. It can be created with [`Request::get`]
 /// or [`Request::post`], depending on the kind of request needed.
 ///
 /// Then, various request metadata can be encoded in the builder once it is
 /// created. For instance, one can use the
-/// [`with_header`](RequestBuilder::with_header) method to specify a header key
+/// [`with_header`](Request::with_header) method to specify a header key
 /// to the request.
 ///
-/// Once the metadata is encoded, the [`with_body`](RequestBuilder::with_body)
-/// method allows to specify a body and create the final [`Request`] object.
+/// Once the metadata is encoded, the [`with_body`](Request::with_body)
+/// method allows to specify a body.
 ///
 /// The following code snippet shows all these three steps:
 ///
@@ -45,7 +45,7 @@ use crate::url::IntoUrl;
 ///
 /// let request = Request::get("users")       // Creating the builder...
 ///     .with_header("token", "mom-said-yes") // ... Adding metadata to the builder
-///     .with_body(GetUsersFilter::All);      // ... Adding a body, building the final Request.
+///     .with_body(GetUsersFilter::All);      // ... Adding a body
 ///
 /// #[derive(Serialize)]
 /// enum GetUsersFilter {
@@ -88,9 +88,10 @@ impl Request<()> {
     /// let user_name = "scrabsha";
     /// let request_2 = Request::get(path!["users", user_name]);
     /// ```
-    pub fn get(url: impl IntoUrl) -> RequestBuilder {
+    pub fn get(url: impl IntoUrl) -> Request<()> {
         let url = url.into_url();
-        RequestBuilder {
+        Request {
+            body: (),
             header: HashMap::new(),
             method: Method::Get,
             url,
@@ -107,9 +108,10 @@ impl Request<()> {
     ///
     /// Refer to the [`get`][Request::get] method documentation for a
     /// self-describing example.
-    pub fn post(url: impl IntoUrl) -> RequestBuilder {
+    pub fn post(url: impl IntoUrl) -> Request<()> {
         let url = url.into_url();
-        RequestBuilder {
+        Request {
+            body: (),
             header: HashMap::new(),
             method: Method::Post,
             url,
@@ -126,9 +128,10 @@ impl Request<()> {
     ///
     /// Refer to the [`get`][Request::get] method documentation for a
     /// self-describing example.
-    pub fn put(url: impl IntoUrl) -> RequestBuilder {
+    pub fn put(url: impl IntoUrl) -> Request<()> {
         let url = url.into_url();
-        RequestBuilder {
+        Request {
+            body: (),
             header: HashMap::new(),
             method: Method::Put,
             url,
@@ -144,10 +147,11 @@ impl Request<()> {
     /// passed.
     ///
     /// Refer to the [`get`][Request::get] method documentation for a
-    /// self-describing example.
-    pub fn delete(url: impl IntoUrl) -> RequestBuilder {
+    /// self-describing example,.
+    pub fn delete(url: impl IntoUrl) -> Request<()> {
         let url = url.into_url();
-        RequestBuilder {
+        Request {
+            body: (),
             header: HashMap::new(),
             method: Method::Delete,
             url,
@@ -160,8 +164,8 @@ impl Request<()> {
 /// This type can be created by calling either [`Request::get`],
 /// [`Request::post`], [`Request::put`] or [`Request::delete`].
 /// Specifically, this type allows to encode the request
-/// header with [`RequestBuilder::with_header`], and to create the final
-/// [`Request`] type by calling [`RequestBuilder::with_body`].
+/// header with [`Request::with_header`], and to encode the
+/// request body with [`Request::with_body`].
 ///
 /// This allows to create [`Request`] types, as shown in the following example:
 ///
@@ -181,15 +185,12 @@ impl Request<()> {
 ///     login: String,
 /// }
 /// ```
-pub struct RequestBuilder {
-    header: HashMap<String, String>,
-    method: Method,
-    url: String,
-}
-
-impl RequestBuilder {
+impl<B> Request<B>
+where
+    B: Serialize,
+{
     /// Adds a header key and value to the request.
-    pub fn with_header(mut self, key: impl ToString, value: impl ToString) -> RequestBuilder {
+    pub fn with_header(mut self, key: impl ToString, value: impl ToString) -> Request<B> {
         let previous_entry = self.header.insert(key.to_string(), value.to_string());
         assert!(previous_entry.is_none(), "Attempt to replace a header");
 
@@ -197,14 +198,15 @@ impl RequestBuilder {
     }
 
     /// Specifies a body, returns the final [`Request`] object.
-    pub fn with_body<B>(self, body: B) -> Request<B>
+    pub fn with_body<C>(self, body: C) -> Request<C>
     where
-        B: Serialize,
+        C: Serialize,
     {
-        let RequestBuilder {
+        let Request {
             header,
             method,
             url,
+            ..
         } = self;
 
         Request {

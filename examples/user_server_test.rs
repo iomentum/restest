@@ -109,7 +109,7 @@ pub async fn get_user() {
     };
 
     // We can now use the id variable to create another request.
-    let request = Request::get(path!["users", id]).with_body(());
+    let request = Request::get(path!["users", id]);
 
     let response = CONTEXT
         .run(request)
@@ -150,7 +150,7 @@ pub async fn delete_user() {
         User { id, year_of_birth: 2000 },
     };
 
-    let request = Request::delete(path!["users", id]).with_body(());
+    let request = Request::delete(path!["users", id]);
 
     CONTEXT
         .run(request)
@@ -160,7 +160,7 @@ pub async fn delete_user() {
 
     // We try to delete the same user again and ensure that the server
     // returns a 404 status code.
-    let request = Request::delete(path!["users", id]).with_body(());
+    let request = Request::delete(path!["users", id]);
 
     CONTEXT
         .run(request)
