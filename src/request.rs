@@ -218,6 +218,30 @@ where
     }
 }
 
+impl<B> AsRef<Request<B>> for Request<B>
+where
+    B: Serialize,
+{
+    fn as_ref(&self) -> &Request<B> {
+        self
+    }
+}
+
+impl<B> Clone for Request<B>
+where
+    B: Serialize + Clone,
+{
+    fn clone(&self) -> Request<B> {
+        Request {
+            body: self.body.clone(),
+            header: self.header.clone(),
+            method: self.method,
+            url: self.url.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Method {
     Get,
     Post,

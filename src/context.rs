@@ -73,10 +73,12 @@ impl Context {
     /// Runs a request.
     ///
     /// This function performs I/O, therefore it is marked as `async`.
-    pub async fn run<I>(&self, request: Request<I>) -> RequestResult
+    pub async fn run<I, R>(&self, request: R) -> RequestResult
     where
         I: Serialize,
+        R: AsRef<Request<I>>
     {
+        let request = request.as_ref();
         let client = reqwest::Client::new();
 
         let create_request = match request.method {
@@ -90,7 +92,7 @@ impl Context {
 
         let headers = request
             .header
-            .into_iter()
+            .iter()
             .map(|(k, v)| {
                 (
                     k.parse::<HeaderName>()
