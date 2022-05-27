@@ -76,7 +76,7 @@ impl Context {
     pub async fn run<I, R>(&self, request: R) -> RequestResult
     where
         I: Serialize,
-        R: AsRef<Request<I>>
+        R: AsRef<Request<I>>,
     {
         let request = request.as_ref();
         let client = reqwest::Client::new();
