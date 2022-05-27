@@ -153,15 +153,13 @@ pub async fn delete_user() {
     let request = Request::delete(path!["users", id]);
 
     CONTEXT
-        .run(request)
+        .run(&request)
         .await
         .expect_status::<String>(StatusCode::OK)
         .await;
 
     // We try to delete the same user again and ensure that the server
     // returns a 404 status code.
-    let request = Request::delete(path!["users", id]);
-
     CONTEXT
         .run(request)
         .await
