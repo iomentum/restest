@@ -110,6 +110,9 @@ impl Context {
             .await
             .expect("Request failed");
 
-        RequestResult { response }
+        RequestResult {
+            response,
+            context_description: request.context_description.clone(),
+        }
     }
 }
