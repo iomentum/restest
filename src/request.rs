@@ -67,6 +67,7 @@ where
     pub(crate) header: HashMap<String, String>,
     pub(crate) method: Method,
     pub(crate) url: String,
+    pub(crate) context_description: String,
 }
 
 impl Request<()> {
@@ -94,6 +95,7 @@ impl Request<()> {
             body: (),
             header: HashMap::new(),
             method: Method::Get,
+            context_description: format!("GET:{}", url),
             url,
         }
     }
@@ -114,6 +116,7 @@ impl Request<()> {
             body: (),
             header: HashMap::new(),
             method: Method::Post,
+            context_description: format!("POST:{}", url),
             url,
         }
     }
@@ -134,6 +137,7 @@ impl Request<()> {
             body: (),
             header: HashMap::new(),
             method: Method::Put,
+            context_description: format!("PUT:{}", url),
             url,
         }
     }
@@ -154,6 +158,7 @@ impl Request<()> {
             body: (),
             header: HashMap::new(),
             method: Method::Delete,
+            context_description: format!("DELETE:{}", url),
             url,
         }
     }
@@ -206,6 +211,7 @@ where
             header,
             method,
             url,
+            context_description,
             ..
         } = self;
 
@@ -214,7 +220,15 @@ where
             header,
             method,
             url,
+            context_description,
         }
+    }
+
+    /// Specifies a context description. Returns the final [`Request`] object.
+    pub fn with_context(mut self, context_description: impl ToString) -> Request<B> {
+        self.context_description = context_description.to_string();
+
+        self
     }
 }
 
@@ -237,6 +251,7 @@ where
             header: self.header.clone(),
             method: self.method,
             url: self.url.clone(),
+            context_description: self.context_description.clone(),
         }
     }
 }
@@ -255,6 +270,7 @@ pub(crate) enum Method {
 /// to a concrete type by calling [`RequestResult::expect_status`].
 pub struct RequestResult {
     pub(crate) response: Response,
+    pub(crate) context_description: String,
 }
 
 impl RequestResult {
@@ -276,16 +292,19 @@ impl RequestResult {
         assert_eq!(
             self.response.status(),
             status,
-            "Unexpected server response code. Body is {}",
-            self.response
-                .text()
-                .await
-                .expect("Unexpected server response code. Unable to ready body of the response")
+            "Unexpected server response code for request '{}'. Body is {}",
+            self.context_description,
+            self.response.text().await.unwrap_or_else(|_| panic!(
+                "Unexpected server response code for request {}. Unable to read response body",
+                self.context_description
+            ))
         );
 
-        self.response
-            .json()
-            .await
-            .expect("Failed to deserialize body")
+        self.response.json().await.unwrap_or_else(|_| {
+            panic!(
+                "Failed to deserialize body for request '{}'.",
+                self.context_description
+            )
+        })
     }
 }

@@ -174,9 +174,11 @@ pub async fn delete_user() {
 #[tokio::test]
 pub async fn put_user() {
     // Create a new Request object, just as we did for the post_user test.
-    let request = Request::post("users").with_body(UserInput {
-        year_of_birth: 2000,
-    });
+    let request = Request::post("users")
+        .with_body(UserInput {
+            year_of_birth: 2000,
+        })
+        .with_context("Create a user");
 
     // Similarly, execute the said request and get the output.
     let user = CONTEXT
