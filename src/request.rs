@@ -300,11 +300,12 @@ impl RequestResult {
             ))
         );
 
-        self.response.json().await.unwrap_or_else(|_| {
-            panic!(
-                "Failed to deserialize body for request '{}'.",
-                self.context_description
-            )
-        })
+        match self.response.json().await {
+            Err(err) => panic!(
+                "Failed to deserialize body for request '{}': {}",
+                self.context_description, err
+            ),
+            Ok(res) => res,
+        }
     }
 }
