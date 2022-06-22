@@ -320,28 +320,25 @@ impl RequestResult {
     /// This method return an error if the server response status is not equal to
     /// `status` or if the body can not be deserialized to the specified type.
     #[track_caller]
-    pub async fn ensure_status<T>(self, status: StatusCode) -> Result<T, String >
+    pub async fn ensure_status<T>(self, status: StatusCode) -> Result<T, String>
     where
         T: DeserializeOwned,
     {
-        assert_eq!(
-            self.response.status(),
-            status,
-            "Unexpected server response code for request '{}'. Body is {}",
+        if self.response.status() != status {
+            return Err(format!("Unexpected server response code for request '{}'. Body is {}",
             self.context_description,
             self.response.text().await.map_err(
                 |err| {
                     format!("Unexpected server response code for request {} : {}. Unable to read response body",self.context_description, err)
                 }
-            )?
-        );
+            )?));
+        }
 
-        self.response.json().await.map_err(
-            |err| {
-                format!("Failed to deserialize body for request '{}': {}",
-                    self.context_description,
-                    err)
-            }
-        )?
+        self.response.json().await.map_err(|err| {
+            format!(
+                "Failed to deserialize body for request '{}': {}",
+                self.context_description, err
+            )
+        })?
     }
 }
