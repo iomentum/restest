@@ -336,15 +336,12 @@ impl RequestResult {
             )?
         );
 
-        match self.response.json().await {
-            Err(err) => {
-                return Err(
-                    format!("Failed to deserialize body for request '{}': {}",
+        self.response.json().await.map_err(
+            |err| {
+                format!("Failed to deserialize body for request '{}': {}",
                     self.context_description,
                     err)
-                )
             }
-            Ok(res) => res,
-        }
+        )?
     }
 }
