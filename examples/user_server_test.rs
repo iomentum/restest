@@ -148,7 +148,7 @@ pub async fn ensure_status_failing() {
         .await;
 
     // testing if it is returning an error
-    assert!(response.is_err());    
+    assert!(response.is_err());
 }
 
 /// Test for the DELETE route.
