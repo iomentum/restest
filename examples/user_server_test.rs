@@ -26,6 +26,8 @@
 // I'm sorry but I hate having so much warnings when checking the codebase.
 #![allow(dead_code, unused_imports)]
 
+use std::convert::Infallible;
+
 use http::StatusCode;
 use restest::{assert_body_matches, path, Context, Request};
 use serde::{Deserialize, Serialize};
@@ -45,7 +47,7 @@ struct UserInput {
 ///
 /// Once again, the only constraint is that we must deserialize what the server
 /// responds to us.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq)]
 struct User {
     year_of_birth: usize,
     id: Uuid,
@@ -94,11 +96,13 @@ pub async fn get_user() {
     });
 
     // Similarly, execute the said request and get the output.
+    // This time using ensure_status to return a Result
     let user = CONTEXT
         .run(request)
         .await
-        .expect_status(StatusCode::CREATED)
-        .await;
+        .ensure_status(StatusCode::CREATED)
+        .await
+        .unwrap();
 
     // Here is a little trick: we need to get back the user ID so that we can
     // reuse it for the next request. To do so, we bind the variable id to the
@@ -122,6 +126,29 @@ pub async fn get_user() {
         response,
         User { year_of_birth: 2000, .. },
     };
+}
+
+/// Test for the ensure_status macro.
+///
+/// We add a new user to the database and ensure with a wrong status code
+/// making sure it returns an error.
+#[tokio::test]
+pub async fn ensure_status_failing() {
+    // Create a new Request object, just as we did for the post_user test.
+    let request = Request::post("users").with_body(UserInput {
+        year_of_birth: 2000,
+    });
+
+    // Similarly, execute the said request and get the output.
+    // This time, trying to make the ensure_status fail with a wrong status code
+    let response = CONTEXT
+        .run(request)
+        .await
+        .ensure_status::<User>(StatusCode::ACCEPTED)
+        .await;
+
+    // testing if it is returning an error
+    assert!(response.is_err());    
 }
 
 /// Test for the DELETE route.
