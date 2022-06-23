@@ -339,6 +339,6 @@ impl RequestResult {
                 "Failed to deserialize body for request '{}': {}",
                 self.context_description, err
             )
-        })?
+        })
     }
 }
