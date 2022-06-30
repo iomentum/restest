@@ -12,6 +12,7 @@
 //!
 //! The documentation for [`Request`] provide more specific description.
 
+use core::panic;
 use std::collections::HashMap;
 
 use http::status::StatusCode;
@@ -289,23 +290,9 @@ impl RequestResult {
     where
         T: DeserializeOwned,
     {
-        assert_eq!(
-            self.response.status(),
-            status,
-            "Unexpected server response code for request '{}'. Body is {}",
-            self.context_description,
-            self.response.text().await.unwrap_or_else(|_| panic!(
-                "Unexpected server response code for request {}. Unable to read response body",
-                self.context_description
-            ))
-        );
-
-        match self.response.json().await {
-            Err(err) => panic!(
-                "Failed to deserialize body for request '{}': {}",
-                self.context_description, err
-            ),
-            Ok(res) => res,
+        match self.ensure_status(status).await {
+            Ok(deserialized) => deserialized,
+            Err(err) => panic!("{}", err),
         }
     }
 

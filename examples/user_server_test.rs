@@ -26,8 +26,6 @@
 // I'm sorry but I hate having so much warnings when checking the codebase.
 #![allow(dead_code, unused_imports)]
 
-use std::convert::Infallible;
-
 use http::StatusCode;
 use restest::{assert_body_matches, path, Context, Request};
 use serde::{Deserialize, Serialize};
@@ -128,7 +126,7 @@ pub async fn get_user() {
     };
 }
 
-/// Test for the ensure_status macro.
+/// Test for the ensure_status method.
 ///
 /// We add a new user to the database and ensure with a wrong status code
 /// making sure it returns an error.
