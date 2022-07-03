@@ -180,7 +180,7 @@ pub async fn delete_user() {
     CONTEXT
         .run(&request)
         .await
-        .expect_status::<String>(StatusCode::OK)
+        .expect_status_empty_body(StatusCode::OK)
         .await;
 
     // We try to delete the same user again and ensure that the server
@@ -188,7 +188,7 @@ pub async fn delete_user() {
     CONTEXT
         .run(request)
         .await
-        .expect_status::<String>(StatusCode::NOT_FOUND)
+        .expect_status_empty_body(StatusCode::NOT_FOUND)
         .await;
 }
 
