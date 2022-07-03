@@ -436,7 +436,7 @@ impl RequestResult {
     /// This method panics if the server response status is not equal to `status` or if the
     /// body could not be checked to be empty.
     #[track_caller]
-    pub async fn expect_status_empty_body(self, status: StatusCode) -> () {
+    pub async fn expect_status_empty_body(self, status: StatusCode) {
         match self.ensure_status_empty_body(status).await {
             Ok(()) => (),
             Err(err) => panic!("{}", err),
