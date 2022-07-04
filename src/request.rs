@@ -304,13 +304,53 @@ impl RequestResult {
     ///
     /// # Error
     ///
-    /// This method return an error if the server response status is not equal to
+    /// This method returns an error if the server response status is not equal to
     /// `status` or if the body can not be deserialized to the specified type.
     #[track_caller]
     pub async fn ensure_status<T>(self, status: StatusCode) -> Result<T, String>
     where
         T: DeserializeOwned,
     {
+        self.ensure_status_ignore_body(status)
+            .await?
+            .deserialize_body()
+            .await
+    }
+
+    /// Deserializes the body of the response into a concrete type.
+    ///
+    /// This method uses `serde` internally, so the output type must implement
+    /// [`DeserializeOwned`].
+    ///
+    /// # Error
+    ///
+    /// This method returns an error if the body can not be deserialized to the
+    /// specified type.
+    #[track_caller]
+    pub async fn deserialize_body<T>(self) -> Result<T, String>
+    where
+        T: DeserializeOwned,
+    {
+        self.response.json().await.map_err(|err| {
+            format!(
+                "Failed to deserialize body for request '{}': {}",
+                self.context_description, err
+            )
+        })
+    }
+
+    /// Checks if the response status meets an expected status code. No check is
+    /// performed on the body.
+    ///
+    /// # Error
+    ///
+    /// This method returns an error if the server response status is not equal to
+    /// `status`.
+    #[track_caller]
+    pub async fn ensure_status_ignore_body(
+        self,
+        status: StatusCode,
+    ) -> Result<RequestResult, String> {
         if self.response.status() != status {
             return Err(format!("Unexpected server response code for request '{}'. Body is {}",
             self.context_description,
@@ -321,11 +361,85 @@ impl RequestResult {
             )?));
         }
 
-        self.response.json().await.map_err(|err| {
-            format!(
-                "Failed to deserialize body for request '{}': {}",
-                self.context_description, err
-            )
-        })
+        Ok(self)
+    }
+
+    /// Checks if the response status meets an expected status code. No check is
+    /// performed on the body.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the server response status is not equal to `status`.
+    #[track_caller]
+    pub async fn expect_status_ignore_body(self, status: StatusCode) {
+        match self.ensure_status_ignore_body(status).await {
+            Ok(_) => {}
+            Err(err) => panic!("{}", err),
+        }
+    }
+
+    /// Checks if the response body is empty.
+    ///
+    /// The `Content-length` header is first checked; if it is missing (e.g. in case of
+    /// a compressed payload or a chunked transfer encoding), the body is fetched and its
+    /// length is checked.
+    ///
+    /// # Error
+    ///
+    /// This method returns an error if the body could not be checked to be empty.
+    #[track_caller]
+    pub async fn ensure_empty_body(self) -> Result<(), String> {
+        if matches!(self.response.content_length(), Some(0))
+            || self
+                .response
+                .text()
+                .await
+                .map_err(|err| {
+                    format!(
+                        "Failed to check body for request '{}': {}",
+                        self.context_description, err
+                    )
+                })?
+                .is_empty()
+        {
+            Ok(())
+        } else {
+            Err(format!(
+                "Unexpected body for request '{}'",
+                self.context_description
+            ))
+        }
+    }
+
+    /// Checks if the response body meets an expected status code and the body is empty.
+    ///
+    /// See `ensure_empty_body` for more details.
+    ///
+    /// # Error
+    ///
+    /// This method returns an error if the server response status is not equal to
+    /// `status` or if the body could not be checked to be empty.
+    #[track_caller]
+    pub async fn ensure_status_empty_body(self, status: StatusCode) -> Result<(), String> {
+        self.ensure_status_ignore_body(status)
+            .await?
+            .ensure_empty_body()
+            .await
+    }
+
+    /// Checks if the response body meets an expected status code and the body is empty.
+    ///
+    /// See `ensure_empty_body` for more details.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the server response status is not equal to `status` or if the
+    /// body could not be checked to be empty.
+    #[track_caller]
+    pub async fn expect_status_empty_body(self, status: StatusCode) {
+        match self.ensure_status_empty_body(status).await {
+            Ok(()) => (),
+            Err(err) => panic!("{}", err),
+        }
     }
 }

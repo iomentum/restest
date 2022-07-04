@@ -76,8 +76,8 @@ impl Database {
     fn delete_route(self) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
         method::delete().and(path::param()).map(move |id| {
             match self.users.lock().unwrap().remove(&id) {
-                Some(_) => with_status(json(&"User deleted"), StatusCode::OK),
-                None => with_status(json(&"Failed to delete user"), StatusCode::NOT_FOUND),
+                Some(_) => StatusCode::OK,
+                None => StatusCode::NOT_FOUND,
             }
         })
     }

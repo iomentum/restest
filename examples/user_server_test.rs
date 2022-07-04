@@ -140,13 +140,20 @@ pub async fn ensure_status_failing() {
     // Similarly, execute the said request and get the output.
     // This time, trying to make the ensure_status fail with a wrong status code
     let response = CONTEXT
-        .run(request)
+        .run(&request)
         .await
-        .ensure_status::<User>(StatusCode::ACCEPTED)
+        .ensure_status_ignore_body(StatusCode::ACCEPTED) // Result<_, _> version
         .await;
 
     // testing if it is returning an error
     assert!(response.is_err());
+
+    // Now we check the correct status code
+    CONTEXT
+        .run(request)
+        .await
+        .expect_status_ignore_body(StatusCode::CREATED) // Panicking version
+        .await;
 }
 
 /// Test for the DELETE route.
@@ -180,7 +187,7 @@ pub async fn delete_user() {
     CONTEXT
         .run(&request)
         .await
-        .expect_status::<String>(StatusCode::OK)
+        .expect_status_empty_body(StatusCode::OK) // Panicking version
         .await;
 
     // We try to delete the same user again and ensure that the server
@@ -188,8 +195,9 @@ pub async fn delete_user() {
     CONTEXT
         .run(request)
         .await
-        .expect_status::<String>(StatusCode::NOT_FOUND)
-        .await;
+        .ensure_status_empty_body(StatusCode::NOT_FOUND) // Result<_, _> version
+        .await
+        .unwrap();
 }
 
 /// Test for the PUT route.
@@ -232,6 +240,15 @@ pub async fn put_user() {
     assert_body_matches! {
         response,
         User { year_of_birth: 2001, .. },
+    };
+
+    let request = Request::get(path!["users", id]);
+
+    let response = CONTEXT.run(request).await.deserialize_body().await;
+
+    assert_body_matches! {
+        response,
+        Ok(User { year_of_birth: 2001, ..})
     };
 }
 
