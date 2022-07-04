@@ -180,7 +180,7 @@ pub async fn delete_user() {
     CONTEXT
         .run(&request)
         .await
-        .expect_status_empty_body(StatusCode::OK)
+        .expect_status_empty_body(StatusCode::OK) // Panicking version
         .await;
 
     // We try to delete the same user again and ensure that the server
@@ -188,8 +188,9 @@ pub async fn delete_user() {
     CONTEXT
         .run(request)
         .await
-        .expect_status_empty_body(StatusCode::NOT_FOUND)
-        .await;
+        .ensure_status_empty_body(StatusCode::NOT_FOUND) // Result<_, _> version
+        .await
+        .unwrap();
 }
 
 /// Test for the PUT route.
@@ -232,6 +233,15 @@ pub async fn put_user() {
     assert_body_matches! {
         response,
         User { year_of_birth: 2001, .. },
+    };
+
+    let request = Request::get(path!["users", id]);
+
+    let response = CONTEXT.run(request).await.deserialize_body().await;
+
+    assert_body_matches! {
+        response,
+        Ok(User { year_of_birth: 2001, ..})
     };
 }
 
