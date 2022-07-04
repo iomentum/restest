@@ -140,13 +140,20 @@ pub async fn ensure_status_failing() {
     // Similarly, execute the said request and get the output.
     // This time, trying to make the ensure_status fail with a wrong status code
     let response = CONTEXT
-        .run(request)
+        .run(&request)
         .await
-        .ensure_status::<User>(StatusCode::ACCEPTED)
+        .ensure_status_ignore_body(StatusCode::ACCEPTED) // Result<_, _> version
         .await;
 
     // testing if it is returning an error
     assert!(response.is_err());
+
+    // Now we check the correct status code
+    CONTEXT
+        .run(request)
+        .await
+        .expect_status_ignore_body(StatusCode::CREATED) // Panicking version
+        .await;
 }
 
 /// Test for the DELETE route.
