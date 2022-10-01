@@ -299,33 +299,41 @@ impl RequestResult {
     /// Checks if the response status meets an expected status code and convert
     /// the body to a concrete type.
     ///
-    /// This method uses `serde` internally, so the output type must implement
+    /// This method uses `serde_json`, so the output type must implement
     /// [`DeserializeOwned`].
     ///
     /// # Error
     ///
     /// This method return an error if the server response status is not equal to
-    /// `status` or if the body can not be deserialized to the specified type.
+    /// `status` or if the body can not be deserialized to the specified type or if the body is incorrectly formatted.
     #[track_caller]
     pub async fn ensure_status<T>(self, status: StatusCode) -> Result<T, String>
     where
         T: DeserializeOwned,
     {
-        if self.response.status() != status {
-            return Err(format!("Unexpected server response code for request '{}'. Body is {}",
-            self.context_description,
-            self.response.text().await.map_err(
-                |err| {
-                    format!("Unexpected server response code for request {} : {}. Unable to read response body",self.context_description, err)
-                }
-            )?));
-        }
+        let response_status = self.response.status();
+        let response_text = self.response.text().await;
 
-        self.response.json().await.map_err(|err| {
-            format!(
-                "Failed to deserialize body for request '{}': {}",
+        match response_text {
+            Err(err) => Err(format!(
+                "Incorrectly formatted body for request '{}': {}",
                 self.context_description, err
-            )
-        })
+            )),
+            Ok(text) => {
+                if response_status != status {
+                    Err(format!(
+                        "Unexpected server response code for request '{}'. Body is {}",
+                        self.context_description, text
+                    ))
+                } else {
+                    serde_json::from_str(&text).map_err(|err| {
+                        format!(
+                            "Failed to deserialize body for request '{}': {}. Body is {}",
+                            self.context_description, err, text
+                        )
+                    })
+                }
+            }
+        }
     }
 }
